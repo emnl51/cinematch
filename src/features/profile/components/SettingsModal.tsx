@@ -12,8 +12,13 @@ import {
   Zap,
   Target,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  Upload,
+  Database,
+  Trash2
 } from 'lucide-react';
+import { StorageService } from '../../../shared/services/storage';
 
 export interface AppSettings {
   // Görünüm Ayarları
@@ -123,11 +128,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   isInitialSetup = false,
   onInitialSetupComplete
 }) => {
-  const [activeTab, setActiveTab] = useState<'appearance' | 'content' | 'algorithm' | 'performance' | 'privacy' | 'experimental'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'content' | 'algorithm' | 'data' | 'performance' | 'privacy' | 'experimental'>('appearance');
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
   const [hasChanges, setHasChanges] = useState(false);
   const [setupStep, setSetupStep] = useState(1);
   const [, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -209,10 +219,81 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     return false;
   };
 
+  const handleExportData = async () => {
+    setExportLoading(true);
+    try {
+      const data = StorageService.exportData();
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cinematch_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export error:', error);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportLoading(true);
+    setImportError(null);
+    setImportSuccess(false);
+
+    try {
+      const text = await file.text();
+      const success = await StorageService.importData(text);
+      
+      if (success) {
+        setImportSuccess(true);
+        // Reset the file input
+        event.target.value = '';
+        // Optionally reload the page or refresh the data
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setImportError('Dosya formatı geçersiz veya bozuk.');
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      setImportError('Dosya okunamadı. Lütfen geçerli bir JSON dosyası seçin.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleClearData = async () => {
+    if (!window.confirm('Tüm verileriniz silinecek! Bu işlem geri alınamaz. Devam etmek istediğinizden emin misiniz?')) {
+      return;
+    }
+
+    setClearLoading(true);
+    try {
+      StorageService.clearAllData();
+      // Reload the page to show the cleared state
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error('Clear data error:', error);
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   const tabs = [
     { id: 'appearance', label: 'Görünüm', icon: Palette },
     { id: 'content', label: 'İçerik', icon: Eye },
     { id: 'algorithm', label: 'AI Algoritması', icon: Brain },
+    { id: 'data', label: 'Veri Yönetimi', icon: Database },
     { id: 'performance', label: 'Performans', icon: Zap },
     { id: 'privacy', label: 'Gizlilik', icon: Settings },
     { id: 'experimental', label: 'Deneysel', icon: Target }
@@ -347,6 +428,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   {activeTab === 'appearance' && 'Görünüm ve kullanıcı arayüzü ayarları'}
                   {activeTab === 'content' && 'İçerik filtreleme ve görüntüleme tercihleri'}
                   {activeTab === 'algorithm' && 'AI öneri algoritması ince ayarları'}
+                  {activeTab === 'data' && 'Veri yedekleme, geri yükleme ve temizleme işlemleri'}
                   {activeTab === 'performance' && 'Uygulama performansı ve optimizasyon'}
                   {activeTab === 'privacy' && 'Gizlilik ve veri koruma ayarları'}
                   {activeTab === 'experimental' && 'Beta özellikler ve deneysel fonksiyonlar'}
@@ -741,6 +823,157 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         >
                           Maceracı
                         </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Management Tab */}
+              {activeTab === 'data' && (
+                <div className="space-y-6">
+                  {/* Data Export */}
+                  <div className="bg-theme-card rounded-xl p-6 border border-theme-primary">
+                    <h4 className="text-lg font-semibold text-theme-primary mb-4 flex items-center space-x-2">
+                      <Download className="h-5 w-5 text-green-400" />
+                      <span>Veri Dışa Aktarma</span>
+                    </h4>
+                    <p className="text-theme-secondary text-sm mb-4">
+                      Tüm puanlarınızı, profilinizi ve izleme listenizi JSON formatında indirin. 
+                      Bu dosyayı saklayarak verilerinizi yedekleyebilirsiniz.
+                    </p>
+                    <button
+                      onClick={handleExportData}
+                      disabled={exportLoading}
+                      className="flex items-center space-x-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-green-600/50 disabled:to-emerald-600/50 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium shadow-lg"
+                    >
+                      <Download className={`h-5 w-5 ${exportLoading ? 'animate-pulse' : ''}`} />
+                      <span>{exportLoading ? 'Dışa Aktarılıyor...' : 'Verileri Dışa Aktar'}</span>
+                    </button>
+                  </div>
+
+                  {/* Data Import */}
+                  <div className="bg-theme-card rounded-xl p-6 border border-theme-primary">
+                    <h4 className="text-lg font-semibold text-theme-primary mb-4 flex items-center space-x-2">
+                      <Upload className="h-5 w-5 text-blue-400" />
+                      <span>Veri İçe Aktarma</span>
+                    </h4>
+                    <p className="text-theme-secondary text-sm mb-4">
+                      Daha önce dışa aktardığınız JSON dosyasını yükleyerek verilerinizi geri yükleyin.
+                      Bu işlem mevcut verilerinizin üzerine yazacaktır.
+                    </p>
+                    
+                    {importSuccess && (
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <span className="text-green-400 text-sm font-medium">
+                            Veriler başarıyla içe aktarıldı! Sayfa yenileniyor...
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {importError && (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+                        <div className="flex items-center space-x-2">
+                          <AlertTriangle className="h-4 w-4 text-red-400" />
+                          <span className="text-red-400 text-sm">{importError}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleImportData}
+                        disabled={importLoading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <button
+                        disabled={importLoading}
+                        className="flex items-center space-x-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:from-blue-600/50 disabled:to-cyan-600/50 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium shadow-lg"
+                      >
+                        <Upload className={`h-5 w-5 ${importLoading ? 'animate-pulse' : ''}`} />
+                        <span>{importLoading ? 'İçe Aktarılıyor...' : 'Dosya Seç ve İçe Aktar'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Data Clearing */}
+                  <div className="bg-theme-card rounded-xl p-6 border border-theme-primary">
+                    <h4 className="text-lg font-semibold text-theme-primary mb-4 flex items-center space-x-2">
+                      <Trash2 className="h-5 w-5 text-red-400" />
+                      <span>Veri Temizleme</span>
+                    </h4>
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+                      <div className="flex items-start space-x-2">
+                        <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-red-400 text-sm font-medium mb-1">Dikkat!</p>
+                          <p className="text-red-300 text-sm">
+                            Bu işlem tüm puanlarınızı, profilinizi, izleme listenizi ve ayarlarınızı kalıcı olarak silecektir. 
+                            Bu işlem geri alınamaz.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClearData}
+                      disabled={clearLoading}
+                      className="flex items-center space-x-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-red-600/50 disabled:to-red-700/50 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium shadow-lg"
+                    >
+                      <Trash2 className={`h-5 w-5 ${clearLoading ? 'animate-pulse' : ''}`} />
+                      <span>{clearLoading ? 'Temizleniyor...' : 'Tüm Verileri Sil'}</span>
+                    </button>
+                  </div>
+
+                  {/* Data Information */}
+                  <div className="bg-theme-card rounded-xl p-6 border border-theme-primary">
+                    <h4 className="text-lg font-semibold text-theme-primary mb-4 flex items-center space-x-2">
+                      <Info className="h-5 w-5 text-blue-400" />
+                      <span>Veri Bilgisi</span>
+                    </h4>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between items-center p-3 bg-theme-secondary rounded-lg">
+                        <span className="text-theme-secondary">Toplam Puanlama:</span>
+                        <span className="text-theme-primary font-medium">
+                          {(() => {
+                            try {
+                              const ratings = StorageService.getRatings();
+                              return ratings.length;
+                            } catch {
+                              return '0';
+                            }
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-theme-secondary rounded-lg">
+                        <span className="text-theme-secondary">İzleme Listesi:</span>
+                        <span className="text-theme-primary font-medium">
+                          {(() => {
+                            try {
+                              const watchlist = StorageService.getWatchlist();
+                              return watchlist.length;
+                            } catch {
+                              return '0';
+                            }
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-theme-secondary rounded-lg">
+                        <span className="text-theme-secondary">Profil Durumu:</span>
+                        <span className="text-theme-primary font-medium">
+                          {(() => {
+                            try {
+                              const profile = StorageService.getProfile();
+                              return profile ? 'Mevcut' : 'Yok';
+                            } catch {
+                              return 'Yok';
+                            }
+                          })()}
+                        </span>
                       </div>
                     </div>
                   </div>
