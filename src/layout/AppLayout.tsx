@@ -1,10 +1,10 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Sparkles, Menu } from 'lucide-react';
 
 interface AppLayoutProps {
   children: ReactNode;
   showMobileHeader?: boolean;
-  onMobileMenuToggle?: () => void;
+  onMobileMenuToggle?: (() => void) | undefined;
 }
 
 export const AppLayout = ({ 
@@ -34,7 +34,7 @@ const Header = ({
   onMobileMenuToggle 
 }: { 
   showMobileHeader: boolean; 
-  onMobileMenuToggle?: () => void; 
+  onMobileMenuToggle?: (() => void) | undefined; 
 }) => {
   if (!showMobileHeader) return null;
 

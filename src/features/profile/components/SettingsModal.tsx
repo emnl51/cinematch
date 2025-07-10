@@ -127,7 +127,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
   const [hasChanges, setHasChanges] = useState(false);
   const [setupStep, setSetupStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [, setCompletedSteps] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     setLocalSettings(settings);

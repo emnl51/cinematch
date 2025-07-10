@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Star, Calendar, Heart, Users, Brain, Film, Award, BarChart3, Zap, Eye, Sparkles, Edit } from 'lucide-react';
+import { User, Star, Heart, Users, Brain, Film, Award, BarChart3, Zap, Eye, Sparkles, Edit } from 'lucide-react';
 import type { UserProfile, Genre, UserRating } from '../types';
 import { ProfileService } from '../services/profileService';
 import { LearningService } from '../../learning/services/learningService';
@@ -51,12 +51,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
       });
   };
 
-  const getTopPeriods = () => {
-    return Object.entries(profile.periodPreference)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([decade, percentage]) => ({ decade, percentage: percentage.toFixed(1) }));
-  };
+
 
   const getTopActors = () => {
     return Object.values(profile.favoriteActors)

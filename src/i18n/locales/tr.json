@@ -1,0 +1,13 @@
+{
+  "welcome": "Hoş Geldiniz",
+  "home": "Ana Sayfa",
+  "search": "Arama",
+  "recommendations": "Öneriler",
+  "profile": "Profil",
+  "watchlist": "İzleyeceğim Liste",
+  "settings": "Ayarlar",
+  "about": "Hakkında",
+  "loading": "Yükleniyor...",
+  "movie_details": "Film Detayları",
+  "not_found": "Sayfa Bulunamadı"
+}

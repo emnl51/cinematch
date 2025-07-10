@@ -7,13 +7,9 @@ import {
   TrendingUp,
   Search,
   X,
-  Download,
-  Upload,
-  Trash2,
   RefreshCw,
   User,
   Award,
-  Film,
   Eye
 } from 'lucide-react';
 
@@ -39,11 +35,11 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
-  onExport,
-  onImport,
-  onClear,
+  onExport: _onExport,
+  onImport: _onImport,
+  onClear: _onClear,
   onRefreshRecommendations,
-  clearLoading = false,
+  clearLoading: _clearLoading = false,
   recommendationsLoading = false,
   ratingsCount,
   watchlistCount,
@@ -124,77 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const quickActions = [
-    {
-      id: 'settings',
-      label: 'Ayarlar',
-      icon: Settings,
-      onClick: () => {
-        onTabChange('settings');
-        // Mobil ekranlarda sayfa seçildikten sonra sidebar'ı kapat
-        if (isMobile && isOpen) {
-          onToggle();
-        }
-      },
-      color: 'from-slate-500 to-gray-500'
-    },
-    {
-      id: 'export',
-      label: 'Verileri Dışa Aktar',
-      icon: Download,
-      onClick: () => {
-        try {
-          const data = onExport();
-          const blob = new Blob([data], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `cinematch-backup-${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error('Export error:', error);
-          alert('Veri dışa aktarma sırasında hata oluştu!');
-        }
-      },
-      color: 'from-green-500 to-emerald-500'
-    },
-    {
-      id: 'import',
-      label: 'Verileri İçe Aktar',
-      icon: Upload,
-      onClick: () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e) => {
-          const file = (e.target as HTMLInputElement).files?.[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const content = e.target?.result as string;
-              if (content) {
-                onImport(content);
-              }
-            };
-            reader.readAsText(file);
-          }
-        };
-        input.click();
-      },
-      color: 'from-blue-500 to-cyan-500'
-    },
-    {
-      id: 'clear',
-      label: 'Tüm Verileri Temizle',
-      icon: Trash2,
-      onClick: onClear,
-      disabled: clearLoading,
-      color: 'from-red-500 to-pink-500'
-    }
-  ];
+  // Quick actions - removed unused variable warning
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-theme-primary border-r border-theme-primary">
@@ -245,7 +171,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       <nav className="flex-1 py-2 px-2 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const Emoji = item.emoji;
           const isActive = activeTab === item.id;
           const isDisabled = item.disabled;
           return (
@@ -264,11 +189,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-all duration-150 justify-start text-left
                 ${isActive ? 'bg-theme-secondary text-amber-400' : isDisabled ? 'text-theme-tertiary cursor-not-allowed' : 'text-theme-secondary hover:bg-theme-secondary hover:text-amber-300'}`}
             >
-              {Emoji ? (
-                <span className="text-xl leading-none">{Emoji}</span>
-              ) : (
-                Icon && <Icon className={`h-5 w-5 ${isDisabled ? 'opacity-50' : ''}`} />
-              )}
+              <Icon className={`h-5 w-5 ${isDisabled ? 'opacity-50' : ''}`} />
               <span className="flex-1 text-left">{item.label}</span>
             </button>
           );

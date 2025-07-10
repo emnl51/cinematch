@@ -1,0 +1,13 @@
+{
+  "welcome": "Bienvenido",
+  "home": "Inicio",
+  "search": "Buscar",
+  "recommendations": "Recomendaciones",
+  "profile": "Perfil",
+  "watchlist": "Lista de Seguimiento",
+  "settings": "Configuración",
+  "about": "Acerca de",
+  "loading": "Cargando...",
+  "movie_details": "Detalles de la Película",
+  "not_found": "Página No Encontrada"
+}

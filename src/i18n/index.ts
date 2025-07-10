@@ -76,9 +76,9 @@ i18n
     updateMissing: process.env.NODE_ENV === 'development',
     
     // Custom missing key handler
-    missingKeyHandler: (lng: string, ns: string, key: string, fallbackValue: string) => {
+    missingKeyHandler: (lngs: readonly string[], _ns: string, key: string, _fallbackValue: string, _updateMissing: boolean, _options: any) => {
       if (process.env.NODE_ENV === 'development') {
-        console.warn(`Missing translation key: ${key} for language: ${lng}`);
+        console.warn(`Missing translation key: ${key} for languages: ${lngs.join(', ')}`);
       }
     }
   });

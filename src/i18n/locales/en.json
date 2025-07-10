@@ -1,0 +1,13 @@
+{
+  "welcome": "Welcome",
+  "home": "Home",
+  "search": "Search",
+  "recommendations": "Recommendations",
+  "profile": "Profile",
+  "watchlist": "Watchlist",
+  "settings": "Settings",
+  "about": "About",
+  "loading": "Loading...",
+  "movie_details": "Movie Details",
+  "not_found": "Page Not Found"
+}

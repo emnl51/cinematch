@@ -603,7 +603,7 @@ export const FavoriteWritersModal: React.FC<FavoriteWritersModalProps> = ({
                                       >
                                         {isInWatchlist(content.id) ? (
                                           <>
-                                            <BookmarkCheck className="h-3 w-3" />
+                                            <BookMarked className="h-3 w-3" />
                                             <span>Listede</span>
                                           </>
                                         ) : (
@@ -738,7 +738,7 @@ export const FavoriteWritersModal: React.FC<FavoriteWritersModalProps> = ({
                                     }`}
                                   >
                                     {isInWatchlist(content.id) ? (
-                                      <BookmarkCheck className="h-3 w-3" />
+                                                                             <BookMarked className="h-3 w-3" />
                                     ) : (
                                       <Bookmark className="h-3 w-3" />
                                     )}

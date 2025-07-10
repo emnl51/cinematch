@@ -13,7 +13,7 @@ import { useSettings } from './features/profile/hooks/useSettings';
 import { LearningService } from './features/learning/services/learningService';
 import { RealTimeLearningService } from './features/learning/services/realTimeLearningService';
 import { OnboardingFlow } from './features/onboarding';
-import { Sparkles, Star, Target, Brain, TestTube, TrendingUp, RefreshCw, Zap, Search, Menu, Download, Upload, Trash2 } from 'lucide-react';
+import { Sparkles, Star, Target, Brain, TestTube, TrendingUp, RefreshCw, Zap, Search, Menu } from 'lucide-react';
 import { FeaturedLists } from './features/content/components/FeaturedLists';
 import { SkippedContentModal } from './features/profile/components/SkippedContentModal';
 
@@ -39,7 +39,6 @@ function App() {
     genres,
     recommendations,
     filteredRecommendations,
-    loading,
 
     recommendationsLoading,
     recommendationsLoadingProgress,

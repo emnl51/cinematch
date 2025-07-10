@@ -1,10 +1,10 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import ErrorBoundary from '../components/ErrorBoundary';
-import LoadingSpinner from '../components/LoadingSpinner';
-import MovieDetailsSkeleton from '../components/skeletons/MovieDetailsSkeleton';
-import RecommendationsSkeleton from '../components/skeletons/RecommendationsSkeleton';
-import ProfileSkeleton from '../components/skeletons/ProfileSkeleton';
+import { ErrorBoundary } from '../shared/components/ErrorBoundary';
+import LoadingSpinner from '../shared/components/LoadingSpinner';
+import MovieDetailsSkeleton from '../shared/components/skeletons/MovieDetailsSkeleton';
+import RecommendationsSkeleton from '../shared/components/skeletons/RecommendationsSkeleton';
+import ProfileSkeleton from '../shared/components/skeletons/ProfileSkeleton';
 
 // Lazy load components for code splitting
 const Home = lazy(() => import('../pages/Home'));
@@ -17,24 +17,9 @@ const Settings = lazy(() => import('../pages/Settings'));
 const About = lazy(() => import('../pages/About'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
-// Preload critical components
-const MovieDetailsPreload = lazy(() => 
-  import('../pages/MovieDetails').then(module => {
-    // Preload related components
-    import('../components/MovieRating');
-    import('../components/MovieRecommendations');
-    return module;
-  })
-);
-
-const RecommendationsPreload = lazy(() => 
-  import('../pages/Recommendations').then(module => {
-    // Preload recommendation components
-    import('../components/RecommendationCard');
-    import('../components/RecommendationFilters');
-    return module;
-  })
-);
+// Use the regular components
+const MovieDetailsPreload = MovieDetails;
+const RecommendationsPreload = Recommendations;
 
 interface AppRouterProps {
   isAuthenticated?: boolean;
@@ -45,21 +30,27 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   isAuthenticated = false, 
   onRouteChange 
 }) => {
-  // Route change handler for analytics
-  const handleRouteChange = (route: string) => {
-    onRouteChange?.(route);
-    
-    // Track route changes for performance monitoring
-    if (typeof window !== 'undefined' && window.gtag) {
-      window.gtag('config', 'GA_MEASUREMENT_ID', {
-        page_path: route,
-      });
-    }
-  };
+  // Track route changes if needed
+  if (onRouteChange) {
+    // This could be used for analytics
+  }
 
   return (
     <Router>
-      <ErrorBoundary>
+      <ErrorBoundary fallback={({ error, resetError }) => (
+        <div className="min-h-screen bg-brand-dark flex items-center justify-center p-4">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 max-w-md">
+            <h2 className="text-red-400 font-bold mb-2">Bir hata oluştu</h2>
+            <p className="text-red-300 text-sm mb-4">{error.message}</p>
+            <button
+              onClick={resetError}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm"
+            >
+              Yeniden Dene
+            </button>
+          </div>
+        </div>
+      )}>
         <Routes>
           {/* Public Routes */}
           <Route 
