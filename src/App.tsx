@@ -616,13 +616,16 @@ function App() {
 
                 {activeTab === 'recommendations' && (
                   <div>
-                    <div className="mb-3">
-                          <h3 className="text-purple-300 font-semibold text-sm mb-1">AI Önerileri Hakkında</h3>
-                          <p className="text-purple-200 text-xs leading-relaxed">
-                            Bu öneriler, puanladığın içeriklerin analizi, tür kombinasyonları, favori oyuncuların ve TMDb'nin öneri algoritması kullanılarak oluşturuluyor. 
-                            Her öneri için eşleşme oranı ve detaylı açıklama sunuluyor.
-                            Filtreleri kullanarak yeni öneriler oluşturabilirsin.
-                          </p>
+                    <div className="mb-6 bg-theme-card rounded-xl p-6 border border-theme-primary">
+                      <h3 className="text-theme-primary font-semibold text-lg mb-3 flex items-center space-x-2">
+                        <Brain className="h-5 w-5 text-purple-400" />
+                        <span>AI Önerileri Hakkında</span>
+                      </h3>
+                      <p className="text-theme-secondary text-sm leading-relaxed">
+                        Bu öneriler, puanladığın içeriklerin analizi, tür kombinasyonları, favori oyuncuların ve TMDb'nin öneri algoritması kullanılarak oluşturuluyor. 
+                        Her öneri için eşleşme oranı ve detaylı açıklama sunuluyor.
+                        Filtreleri kullanarak yeni öneriler oluşturabilirsin.
+                      </p>
                     </div>
 
                     <div className="mb-8">
