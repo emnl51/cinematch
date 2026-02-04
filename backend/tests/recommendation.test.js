@@ -40,16 +40,15 @@ describe('Hybrid Recommendation Engine', () => {
       const weights = recommendationEngine.calculateWeights(userProfile);
       
       expect(weights.content).toBeGreaterThan(weights.collaborative);
-      expect(weights.content).toBe(0.8);
-      expect(weights.collaborative).toBe(0.2);
+      expect(weights.content).toBeGreaterThan(weights.popularity);
     });
 
     it('should return balanced weights for intermediate users', () => {
       const userProfile = { ratingCount: 25 };
       const weights = recommendationEngine.calculateWeights(userProfile);
       
-      expect(weights.content).toBe(0.6);
-      expect(weights.collaborative).toBe(0.4);
+      expect(weights.collaborative).toBeGreaterThan(weights.content);
+      expect(weights.cross).toBeGreaterThan(0);
     });
 
     it('should return collaborative-heavy weights for experienced users', () => {
@@ -82,17 +81,27 @@ describe('Hybrid Recommendation Engine', () => {
       const collaborativeScores = [
         { movieId: 1, score: 0.6, movie: { id: 1, title: 'Movie 1' } }
       ];
+
+      const popularityScores = [
+        { movieId: 1, score: 0.4, movie: { id: 1, title: 'Movie 1' } }
+      ];
+
+      const crossScores = [
+        { movieId: 1, score: 0.5, movie: { id: 1, title: 'Movie 1' } }
+      ];
       
-      const weights = { content: 0.7, collaborative: 0.3 };
+      const weights = { content: 0.6, collaborative: 0.3, popularity: 0.05, cross: 0.05 };
       
       const hybridScores = recommendationEngine.combineScores(
         contentScores,
         collaborativeScores,
+        popularityScores,
+        crossScores,
         weights
       );
       
       expect(hybridScores).toHaveLength(1);
-      expect(hybridScores[0].score).toBeCloseTo(0.74); // 0.8 * 0.7 + 0.6 * 0.3
+      expect(hybridScores[0].score).toBeCloseTo(0.695); // 0.8*0.6 + 0.6*0.3 + 0.4*0.05 + 0.5*0.05
       expect(hybridScores[0].source).toBe('hybrid');
     });
   });

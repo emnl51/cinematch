@@ -16,7 +16,9 @@ class HybridRecommendationEngine {
         count = 25,
         excludeRated = true,
         excludeWatchlist = true,
-        minScore = 0.5
+        minScore = 0.5,
+        diversityFactor = 0.25,
+        includeExplanations = false
       } = options;
 
       // Check cache first
@@ -38,20 +40,31 @@ class HybridRecommendationEngine {
       }
 
       // Generate content-based scores
-      const contentBasedScores = await this.contentBasedRecommendation(userId, availableMovies);
+      const contentBasedScores = await this.contentBasedRecommendation(userId, availableMovies, userProfile);
       
       // Generate collaborative filtering scores
       const collaborativeScores = await this.collaborativeFiltering(userId, availableMovies);
+
+      // Popularity-based scores (cold start + fallback)
+      const popularityScores = this.getPopularityBasedScores(availableMovies);
+
+      // Cross recommendation scores (exploration across genres/directors/actors)
+      const crossScores = this.crossRecommendation(availableMovies, userProfile);
 
       // Combine scores using adaptive weighting
       const hybridScores = this.combineScores(
         contentBasedScores,
         collaborativeScores,
-        weights
+        popularityScores,
+        crossScores,
+        weights,
+        includeExplanations
       );
 
+      const diversifiedScores = this.applyDiversityFilter(hybridScores, diversityFactor, userProfile);
+
       // Sort and filter recommendations
-      const recommendations = hybridScores
+      const recommendations = diversifiedScores
         .filter(item => item.score >= minScore)
         .sort((a, b) => b.score - a.score)
         .slice(0, count);
@@ -66,7 +79,7 @@ class HybridRecommendationEngine {
     }
   }
 
-  async contentBasedRecommendation(userId, availableMovies) {
+  async contentBasedRecommendation(userId, availableMovies, userProfile) {
     try {
       // Get user's rating history
       const userRatings = await this.trackingService.getUserActions(userId, 1000, 'rate');
@@ -77,7 +90,7 @@ class HybridRecommendationEngine {
       }
 
       // Calculate user preferences
-      const userPreferences = this.calculateUserPreferences(userRatings);
+      const userPreferences = userProfile?.preferences || this.calculateUserPreferences(userRatings);
       
       // Score movies based on content similarity
       const contentScores = availableMovies.map(movie => {
@@ -159,34 +172,42 @@ class HybridRecommendationEngine {
     const ratingCount = userProfile.ratingCount || 0;
     const timeActive = userProfile.timeActive || 0; // days since first rating
     const engagement = userProfile.engagement || 0; // average actions per session
+    const ratingVariance = userProfile.ratingVariance || 0;
+    const avgRating = userProfile.avgRating || 0;
 
-    // Adaptive weighting based on user data
+    const consistency = 1 - Math.min(1, ratingVariance / 6);
+    const engagementFactor = Math.min(1, engagement / 15);
+    const longevityBoost = Math.min(0.1, timeActive / 3650); // up to 10% for long-term users
+    const biasFactor = Math.max(-0.1, Math.min(0.1, (avgRating - 6) / 20));
+
+    let baseWeights;
     if (ratingCount < 10) {
-      // Cold start: rely more on content-based
-      return { 
-        content: 0.8, 
-        collaborative: 0.2,
-        popularity: 0.3
-      };
+      baseWeights = { content: 0.55, collaborative: 0.15, popularity: 0.2, cross: 0.1 };
     } else if (ratingCount < 50) {
-      // Building profile: balanced approach
-      return { 
-        content: 0.6, 
-        collaborative: 0.4,
-        popularity: 0.1
-      };
+      baseWeights = { content: 0.45, collaborative: 0.35, popularity: 0.1, cross: 0.1 };
+    } else if (ratingCount < 200) {
+      baseWeights = { content: 0.35, collaborative: 0.45, popularity: 0.05, cross: 0.15 };
     } else {
-      // Experienced user: rely more on collaborative
-      const collaborativeWeight = Math.min(0.8, 0.5 + (ratingCount / 200));
-      return { 
-        content: 1 - collaborativeWeight, 
-        collaborative: collaborativeWeight,
-        popularity: 0.05
-      };
+      baseWeights = { content: 0.3, collaborative: 0.5, popularity: 0.05, cross: 0.15 };
     }
+
+    baseWeights.collaborative += (consistency * 0.1) + (engagementFactor * 0.05) + longevityBoost;
+    baseWeights.content -= (consistency * 0.05);
+    baseWeights.cross += (1 - consistency) * 0.05;
+    baseWeights.popularity += (ratingCount < 10 ? 0.05 : 0) - biasFactor;
+
+    return this.normalizeWeights(baseWeights);
   }
 
-  combineScores(contentScores, collaborativeScores, weights) {
+  normalizeWeights(weights) {
+    const total = Object.values(weights).reduce((sum, value) => sum + value, 0) || 1;
+    return Object.entries(weights).reduce((acc, [key, value]) => {
+      acc[key] = Math.max(0, value / total);
+      return acc;
+    }, {});
+  }
+
+  combineScores(contentScores, collaborativeScores, popularityScores, crossScores, weights, includeExplanations = false) {
     const movieScoreMap = new Map();
 
     // Add content-based scores
@@ -194,7 +215,10 @@ class HybridRecommendationEngine {
       movieScoreMap.set(item.movieId, {
         ...item,
         contentScore: item.score,
-        collaborativeScore: 0
+        collaborativeScore: 0,
+        popularityScore: 0,
+        crossScore: 0,
+        explanation: includeExplanations ? [] : undefined
       });
     });
 
@@ -207,7 +231,44 @@ class HybridRecommendationEngine {
         movieScoreMap.set(item.movieId, {
           ...item,
           contentScore: 0,
-          collaborativeScore: item.score
+          collaborativeScore: item.score,
+          popularityScore: 0,
+          crossScore: 0,
+          explanation: includeExplanations ? [] : undefined
+        });
+      }
+    });
+
+    // Add popularity scores
+    popularityScores.forEach(item => {
+      if (movieScoreMap.has(item.movieId)) {
+        const existing = movieScoreMap.get(item.movieId);
+        existing.popularityScore = item.score;
+      } else {
+        movieScoreMap.set(item.movieId, {
+          ...item,
+          contentScore: 0,
+          collaborativeScore: 0,
+          popularityScore: item.score,
+          crossScore: 0,
+          explanation: includeExplanations ? [] : undefined
+        });
+      }
+    });
+
+    // Add cross recommendation scores
+    crossScores.forEach(item => {
+      if (movieScoreMap.has(item.movieId)) {
+        const existing = movieScoreMap.get(item.movieId);
+        existing.crossScore = item.score;
+      } else {
+        movieScoreMap.set(item.movieId, {
+          ...item,
+          contentScore: 0,
+          collaborativeScore: 0,
+          popularityScore: 0,
+          crossScore: item.score,
+          explanation: includeExplanations ? [] : undefined
         });
       }
     });
@@ -216,8 +277,14 @@ class HybridRecommendationEngine {
     const hybridScores = Array.from(movieScoreMap.values()).map(item => {
       const hybridScore = (
         (item.contentScore * weights.content) +
-        (item.collaborativeScore * weights.collaborative)
+        (item.collaborativeScore * weights.collaborative) +
+        (item.popularityScore * (weights.popularity || 0)) +
+        (item.crossScore * (weights.cross || 0))
       );
+
+      if (includeExplanations && item.explanation) {
+        item.explanation = this.generateExplanations(item, weights);
+      }
 
       return {
         ...item,
@@ -254,16 +321,20 @@ class HybridRecommendationEngine {
         ? allActions.length / sessions.length 
         : 0;
 
+      const preferences = this.calculateUserPreferences(ratings);
+
       return {
         userId,
         ratingCount,
         avgRating,
+        ratingVariance: preferences.ratingVariance,
         timeActive,
         engagement,
         genres: this.calculateGenrePreferences(ratings),
         lastActive: ratings.length > 0 
           ? Math.max(...ratings.map(r => new Date(r.timestamp).getTime()))
-          : null
+          : null,
+        preferences
       };
     } catch (error) {
       console.error('Error getting user profile:', error);
@@ -277,17 +348,61 @@ class HybridRecommendationEngine {
     const genrePreferences = {};
     const directorPreferences = {};
     const actorPreferences = {};
+    const genreCounts = {};
+    const directorCounts = {};
+    const actorCounts = {};
+    const runtimeSignals = [];
+    const yearSignals = [];
     
     // This would be expanded with actual movie metadata
     ratings.forEach(rating => {
-      // Placeholder for genre/director/actor preference calculation
-      // Would require movie metadata integration
+      const ratingSignal = this.normalizeRatingSignal(rating.value);
+      const metadata = rating.metadata || {};
+      const genres = Array.isArray(metadata.genres) ? metadata.genres : [];
+      const directors = Array.isArray(metadata.directors) ? metadata.directors : [];
+      const actors = Array.isArray(metadata.actors) ? metadata.actors : [];
+
+      genres.forEach(genre => {
+        genrePreferences[genre] = (genrePreferences[genre] || 0) + ratingSignal;
+        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+      });
+
+      directors.forEach(director => {
+        directorPreferences[director] = (directorPreferences[director] || 0) + ratingSignal;
+        directorCounts[director] = (directorCounts[director] || 0) + 1;
+      });
+
+      actors.forEach(actor => {
+        actorPreferences[actor] = (actorPreferences[actor] || 0) + ratingSignal;
+        actorCounts[actor] = (actorCounts[actor] || 0) + 1;
+      });
+
+      if (metadata.runtime && ratingSignal > 0) {
+        runtimeSignals.push({ value: metadata.runtime, weight: ratingSignal });
+      }
+
+      if (metadata.releaseYear && ratingSignal > 0) {
+        yearSignals.push({ value: metadata.releaseYear, weight: ratingSignal });
+      }
     });
 
+    const normalizePreferenceMap = (preferences, counts) => {
+      return Object.keys(preferences).reduce((acc, key) => {
+        acc[key] = preferences[key] / (counts[key] || 1);
+        return acc;
+      }, {});
+    };
+
+    const normalizedGenres = normalizePreferenceMap(genrePreferences, genreCounts);
+    const normalizedDirectors = normalizePreferenceMap(directorPreferences, directorCounts);
+    const normalizedActors = normalizePreferenceMap(actorPreferences, actorCounts);
+
     return {
-      genres: genrePreferences,
-      directors: directorPreferences,
-      actors: actorPreferences,
+      genres: normalizedGenres,
+      directors: normalizedDirectors,
+      actors: normalizedActors,
+      runtimePreference: this.calculateRuntimePreference(runtimeSignals),
+      yearPreference: this.calculateYearPreference(yearSignals),
       avgRating: ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length,
       ratingVariance: this.calculateRatingVariance(ratings)
     };
@@ -297,15 +412,25 @@ class HybridRecommendationEngine {
     // Placeholder for content-based similarity calculation
     // Would require movie metadata (genres, directors, actors, etc.)
     
-    // For now, return a random score between 0.3 and 0.9
-    // In real implementation, this would calculate similarity based on:
-    // - Genre overlap
-    // - Director/actor preferences
-    // - Release year preferences
-    // - Runtime preferences
-    // - Rating patterns
-    
-    return Math.random() * 0.6 + 0.3;
+    if (!userPreferences) {
+      return Math.random() * 0.6 + 0.3;
+    }
+
+    const genreScore = this.calculatePreferenceScore(movie.genres, userPreferences.genres);
+    const directorScore = this.calculatePreferenceScore(movie.directors, userPreferences.directors, true);
+    const actorScore = this.calculatePreferenceScore(movie.actors, userPreferences.actors);
+    const runtimeScore = this.calculateRuntimeScore(movie, userPreferences.runtimePreference);
+    const yearScore = this.calculateYearScore(movie, userPreferences.yearPreference);
+
+    const score = (
+      genreScore * 0.4 +
+      directorScore * 0.2 +
+      actorScore * 0.2 +
+      runtimeScore * 0.1 +
+      yearScore * 0.1
+    );
+
+    return this.normalizeScore(score * 10);
   }
 
   async findSimilarUsers(userId, limit = 10) {
@@ -362,7 +487,7 @@ class HybridRecommendationEngine {
     return movies.map(movie => ({
       movieId: movie.id,
       movie,
-      score: Math.random() * 0.5 + 0.3, // Placeholder popularity score
+      score: this.calculatePopularityScore(movie),
       source: 'popularity'
     }));
   }
@@ -401,6 +526,123 @@ class HybridRecommendationEngine {
     if (score < 1) return 0;
     if (score > 10) return 1;
     return (score - 1) / 9;
+  }
+
+  normalizeRatingSignal(value) {
+    const normalized = (value - 5.5) / 4.5;
+    return Math.max(-1, Math.min(1, normalized));
+  }
+
+  calculatePreferenceScore(items, preferenceMap, useMax = false) {
+    if (!items || items.length === 0 || !preferenceMap || Object.keys(preferenceMap).length === 0) {
+      return 0.5;
+    }
+
+    const scores = items
+      .map(item => preferenceMap[item])
+      .filter(score => score !== undefined);
+
+    if (scores.length === 0) {
+      return 0.45;
+    }
+
+    const adjustedScores = scores.map(score => (score + 1) / 2);
+    return useMax
+      ? Math.max(...adjustedScores)
+      : adjustedScores.reduce((sum, value) => sum + value, 0) / adjustedScores.length;
+  }
+
+  calculateRuntimePreference(runtimeSignals) {
+    if (!runtimeSignals || runtimeSignals.length === 0) {
+      return { min: 70, max: 190, ideal: 120 };
+    }
+
+    const weightedSum = runtimeSignals.reduce((sum, item) => sum + (item.value * item.weight), 0);
+    const totalWeight = runtimeSignals.reduce((sum, item) => sum + item.weight, 0) || 1;
+    const ideal = weightedSum / totalWeight;
+    return { min: Math.max(50, ideal - 40), max: ideal + 50, ideal };
+  }
+
+  calculateYearPreference(yearSignals) {
+    if (!yearSignals || yearSignals.length === 0) {
+      return { min: 1980, max: new Date().getFullYear() };
+    }
+
+    const weightedSum = yearSignals.reduce((sum, item) => sum + (item.value * item.weight), 0);
+    const totalWeight = yearSignals.reduce((sum, item) => sum + item.weight, 0) || 1;
+    const ideal = weightedSum / totalWeight;
+    return { min: Math.max(1950, Math.floor(ideal - 15)), max: Math.min(new Date().getFullYear(), Math.ceil(ideal + 15)) };
+  }
+
+  calculateRuntimeScore(movie, runtimePreference) {
+    if (!runtimePreference || !movie.runtime) {
+      return 0.5;
+    }
+
+    if (movie.runtime < runtimePreference.min || movie.runtime > runtimePreference.max) {
+      return 0.2;
+    }
+
+    const distance = Math.abs(movie.runtime - runtimePreference.ideal);
+    const maxDistance = Math.max(runtimePreference.ideal - runtimePreference.min, runtimePreference.max - runtimePreference.ideal);
+
+    return 1 - (distance / (maxDistance || 1));
+  }
+
+  calculateYearScore(movie, yearPreference) {
+    if (!yearPreference || !movie.releaseYear) {
+      return 0.5;
+    }
+
+    if (movie.releaseYear < yearPreference.min || movie.releaseYear > yearPreference.max) {
+      return 0.3;
+    }
+
+    return 1;
+  }
+
+  calculatePopularityScore(movie) {
+    const popularityScore = (movie.popularity || 0) / 100;
+    const ratingScore = (movie.averageRating || 0) / 10;
+    const ratingCountScore = Math.log((movie.ratingCount || 0) + 1) / Math.log(10000);
+    return (popularityScore * 0.4) + (ratingScore * 0.4) + (ratingCountScore * 0.2);
+  }
+
+  crossRecommendation(movies, userProfile) {
+    const preferences = userProfile?.preferences;
+    if (!preferences || !preferences.genres || Object.keys(preferences.genres).length === 0) {
+      return movies.map(movie => ({
+        movieId: movie.id,
+        movie,
+        score: 0.4,
+        source: 'cross'
+      }));
+    }
+
+    const sortedGenres = Object.entries(preferences.genres)
+      .sort(([, a], [, b]) => b - a);
+    const topGenres = sortedGenres.slice(0, 3).map(([genre]) => genre);
+    const dislikedGenres = sortedGenres.filter(([, score]) => score < -0.2).map(([genre]) => genre);
+
+    return movies.map(movie => {
+      const genres = movie.genres || [];
+      const hasTop = genres.some(genre => topGenres.includes(genre));
+      const hasDisliked = genres.some(genre => dislikedGenres.includes(genre));
+      const newGenreCount = genres.filter(genre => !topGenres.includes(genre)).length;
+      const noveltyRatio = genres.length > 0 ? newGenreCount / genres.length : 0;
+
+      let score = hasTop ? 0.5 + (0.4 * noveltyRatio) : 0.35 + (0.3 * noveltyRatio);
+      if (hasDisliked) {
+        score *= 0.6;
+      }
+
+      return {
+        movieId: movie.id,
+        movie,
+        score: this.normalizeScore(score * 10),
+        source: 'cross'
+      };
+    });
   }
 
   calculateRatingVariance(ratings) {
@@ -447,6 +689,60 @@ class HybridRecommendationEngine {
     }
     
     return sessions;
+  }
+
+  applyDiversityFilter(recommendations, diversityFactor, userProfile) {
+    if (!diversityFactor || diversityFactor <= 0) {
+      return recommendations;
+    }
+
+    const diverseRecommendations = [];
+    const selectedGenres = new Set();
+    const selectedDirectors = new Set();
+
+    const sortedRecommendations = [...recommendations].sort((a, b) => b.score - a.score);
+
+    for (const recommendation of sortedRecommendations) {
+      const movie = recommendation.movie || {};
+      const genres = movie.genres || [];
+      const directors = movie.directors || [];
+      const genreOverlap = genres.some(genre => selectedGenres.has(genre));
+      const directorOverlap = directors.some(director => selectedDirectors.has(director));
+
+      let diversityPenalty = 0;
+      if (genreOverlap) diversityPenalty += 0.3;
+      if (directorOverlap) diversityPenalty += 0.2;
+
+      recommendation.score *= (1 - (diversityPenalty * diversityFactor));
+      diverseRecommendations.push(recommendation);
+
+      genres.forEach(genre => selectedGenres.add(genre));
+      directors.forEach(director => selectedDirectors.add(director));
+    }
+
+    return diverseRecommendations;
+  }
+
+  generateExplanations(item, weights) {
+    const explanations = [];
+
+    if (item.contentScore > 0.7 && weights.content > 0.2) {
+      explanations.push('Güçlü içerik uyumu');
+    }
+
+    if (item.collaborativeScore > 0.7 && weights.collaborative > 0.2) {
+      explanations.push('Benzer zevke sahip kullanıcıların tercihi');
+    }
+
+    if (item.popularityScore > 0.7 && (weights.popularity || 0) > 0.05) {
+      explanations.push('Genel popülerlik trendleriyle uyumlu');
+    }
+
+    if (item.crossScore > 0.6 && (weights.cross || 0) > 0.05) {
+      explanations.push('Keşif ve çapraz tür dengesi');
+    }
+
+    return explanations;
   }
 
   async getRecommendationStats() {
