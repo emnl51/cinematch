@@ -7,6 +7,7 @@ import { WatchlistModal } from './features/profile/components/WatchlistModal';
 import { RatedContentModal } from './features/profile/components/RatedContentModal';
 import { SettingsPage } from './features/profile/components/SettingsModal';
 import { ProfileForm } from './features/profile/components/ProfileForm';
+import type { Movie, TVShow } from './features/content/types';
 import { LoadingSpinner, SearchResultsSummary, Sidebar } from './shared/components';
 import { useMovieData } from './features/recommendation/hooks/useMovieData';
 import { useSettings } from './features/profile/hooks/useSettings';
@@ -262,9 +263,54 @@ function App() {
 
   const safeRecommendationCount = Math.max(1, Math.min(100, settings?.recommendationCount || 25));
   const safeDiscoveryCount = Math.max(1, Math.min(100, settings?.discoveryContentCount || 20));
-  const displayedMovies = (movies || []).slice(0, safeDiscoveryCount);
   const ratedIds = new Set(ratings.map(r => r.movieId));
-  const filteredDiscoveryMovies = displayedMovies.filter(movie => !ratedIds.has(movie.id) && !isInWatchlist(movie.id));
+  const discoverySourceMovies = searchQuery ? (movies || []) : (movies || []).slice(0, safeDiscoveryCount);
+  const baseDiscoveryMovies = discoverySourceMovies.filter(movie => !ratedIds.has(movie.id) && !isInWatchlist(movie.id));
+  const resolveMediaType = (item: Movie | TVShow) => {
+    if (item.media_type) {
+      return item.media_type;
+    }
+    return 'title' in item ? 'movie' : 'tv';
+  };
+  const resolveTitle = (item: Movie | TVShow) => ('title' in item ? item.title : item.name) || '';
+  const resolveYear = (item: Movie | TVShow) => {
+    const date = 'release_date' in item ? item.release_date : item.first_air_date;
+    if (!date) {
+      return 0;
+    }
+    const year = Number(date.slice(0, 4));
+    return Number.isNaN(year) ? 0 : year;
+  };
+  const applySearchControls = (items: Array<Movie | TVShow>) => {
+    let results = [...items];
+    if (searchFilters.mediaType && searchFilters.mediaType !== 'all') {
+      results = results.filter(item => resolveMediaType(item) === searchFilters.mediaType);
+    }
+    switch (searchSort) {
+      case 'rating':
+        results.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+        break;
+      case 'year':
+        results.sort((a, b) => resolveYear(b) - resolveYear(a));
+        break;
+      case 'title':
+        results.sort((a, b) => resolveTitle(a).localeCompare(resolveTitle(b), 'tr'));
+        break;
+      case 'popularity':
+        results.sort((a, b) => {
+          const popularityA = (a as { popularity?: number }).popularity || 0;
+          const popularityB = (b as { popularity?: number }).popularity || 0;
+          return popularityB - popularityA;
+        });
+        break;
+      default:
+        break;
+    }
+    return results;
+  };
+  const filteredDiscoveryMovies = searchQuery
+    ? applySearchControls(baseDiscoveryMovies)
+    : baseDiscoveryMovies;
   const displayedRecommendations = (filteredRecommendations || [])
     .filter(rec => !isInWatchlist(rec.movie.id))
     .slice(0, safeRecommendationCount);
@@ -584,11 +630,9 @@ function App() {
                         }}
                         onSortChange={(sortBy) => {
                           setSearchSort(sortBy);
-                          // TODO: Implement search result sorting
                         }}
                         onFilterChange={(filters) => {
                           setSearchFilters(filters);
-                          // TODO: Implement search result filtering
                         }}
                         currentSort={searchSort}
                         currentFilters={searchFilters}
