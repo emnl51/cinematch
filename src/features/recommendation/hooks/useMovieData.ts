@@ -609,6 +609,13 @@ export const useMovieData = (settings?: AppSettings) => {
       const filterRecommendations = () => {
         let filtered = [...recommendations];
 
+        // Çocuk içeriklerini her zaman filtrele (TMDb filtreleri ile uyumlu)
+        filtered = filtered.filter(rec => {
+          if (!rec?.movie?.genre_ids) return true;
+          const isKidsGenre = rec.movie.genre_ids.includes(16) || rec.movie.genre_ids.includes(10751);
+          return !isKidsGenre;
+        });
+
         if (recommendationFilters.mediaType !== 'all') {
           filtered = filtered.filter(rec => resolveMediaType(rec.movie) === recommendationFilters.mediaType);
         }
@@ -621,13 +628,18 @@ export const useMovieData = (settings?: AppSettings) => {
         }
 
         filtered = filtered.filter(rec => {
-          const rating = typeof rec.movie?.vote_average === 'number' ? rec.movie.vote_average : 0;
-          return rating >= recommendationFilters.minRating && rating <= recommendationFilters.maxRating;
+          if (!rec?.movie || typeof rec.movie.vote_average !== 'number' || typeof rec.movie.vote_count !== 'number') {
+            return false;
+          }
+          const minRating = Math.max(6.0, recommendationFilters.minRating);
+          return rec.movie.vote_average >= minRating && 
+            rec.movie.vote_average <= recommendationFilters.maxRating &&
+            rec.movie.vote_count >= 100;
         });
 
         filtered = filtered.filter(rec => {
           const year = resolveYear(rec.movie);
-          if (!year) return false;
+          if (!year) return true;
           return year >= recommendationFilters.minYear && year <= recommendationFilters.maxYear;
         });
 
@@ -637,6 +649,21 @@ export const useMovieData = (settings?: AppSettings) => {
           filtered = filtered.filter(rec => {
             const language = rec.movie?.original_language;
             return language ? recommendationFilters.languages?.includes(language) : false;
+          });
+        }
+
+        if (recommendationFilters.showAnimationContent === false) {
+          filtered = filtered.filter(rec => {
+            if (!rec?.movie?.genre_ids) return true;
+            return !rec.movie.genre_ids.includes(16);
+          });
+        }
+
+        if (recommendationFilters.showAnimeContent === false) {
+          filtered = filtered.filter(rec => {
+            if (!rec?.movie?.genre_ids) return true;
+            const isAnime = rec.movie.genre_ids.includes(16) && rec.movie.original_language === 'ja';
+            return !isAnime;
           });
         }
 
