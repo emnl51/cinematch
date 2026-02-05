@@ -302,6 +302,14 @@ export const useMovieData = (settings?: AppSettings) => {
       if (settings && !settings.showAdultContent) {
         unratedResults = unratedResults.filter(item => !('adult' in item && !!item.adult));
       }
+
+      if (settings && settings.showKidsContent === false) {
+        unratedResults = unratedResults.filter(item => {
+          if (!item?.genre_ids) return true;
+          const isKidsGenre = item.genre_ids.includes(16) || item.genre_ids.includes(10751);
+          return !isKidsGenre;
+        });
+      }
       
       setAllMoviesLocal(unratedResults);
       setMoviesLocal(unratedResults);
@@ -352,6 +360,14 @@ export const useMovieData = (settings?: AppSettings) => {
 
         if (settings && !settings.showAdultContent) {
           unratedResults = unratedResults.filter(item => !('adult' in item && !!item.adult));
+        }
+
+        if (settings && settings.showKidsContent === false) {
+          unratedResults = unratedResults.filter(item => {
+            if (!item?.genre_ids) return true;
+            const isKidsGenre = item.genre_ids.includes(16) || item.genre_ids.includes(10751);
+            return !isKidsGenre;
+          });
         }
 
         setAllMoviesLocal(unratedResults);
@@ -596,12 +612,13 @@ export const useMovieData = (settings?: AppSettings) => {
       const filterRecommendations = () => {
         let filtered = [...recommendations];
 
-        // Çocuk içeriklerini her zaman filtrele (TMDb filtreleri ile uyumlu)
-        filtered = filtered.filter(rec => {
-          if (!rec?.movie?.genre_ids) return true;
-          const isKidsGenre = rec.movie.genre_ids.includes(16) || rec.movie.genre_ids.includes(10751);
-          return !isKidsGenre;
-        });
+        if (recommendationFilters.showKidsContent === false) {
+          filtered = filtered.filter(rec => {
+            if (!rec?.movie?.genre_ids) return true;
+            const isKidsGenre = rec.movie.genre_ids.includes(16) || rec.movie.genre_ids.includes(10751);
+            return !isKidsGenre;
+          });
+        }
 
         if (recommendationFilters.mediaType !== 'all') {
           filtered = filtered.filter(rec => resolveMediaType(rec.movie) === recommendationFilters.mediaType);
@@ -1231,7 +1248,9 @@ export const useMovieData = (settings?: AppSettings) => {
       // Filtreleri kullanarak yeni keşif içerikleri al
       const newContent = await CuratedMovieService.getCuratedContentWithFilters(
         ratings,
-        curatedContentFilters
+        curatedContentFilters,
+        [],
+        { discoveryContentCount: settings?.discoveryContentCount, showKidsContent: settings?.showKidsContent }
       );
       
       safeSetState(setAllMoviesLocal, newContent, []);
@@ -1363,8 +1382,11 @@ export const useMovieData = (settings?: AppSettings) => {
       setLoading(true);
       loadingRef.current = true;
       try {
-        const curatedContent = await CuratedMovieService.getCuratedInitialContent([], undefined, [], 
-          {}
+        const curatedContent = await CuratedMovieService.getCuratedInitialContent(
+          [],
+          undefined,
+          [],
+          { discoveryContentCount: settings?.discoveryContentCount, showKidsContent: settings?.showKidsContent }
         );
         safeSetState(setAllMoviesLocal, curatedContent, []);
         safeSetState(setMoviesLocal, curatedContent, []);
