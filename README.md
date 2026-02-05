@@ -56,9 +56,10 @@ npm install
 cp .env.example .env
 ```
 
-`.env` dosyasını düzenleyin ve TMDb API anahtarınızı ekleyin:
+`.env` dosyasını düzenleyin ve TMDb API kimlik bilgilerinizi ekleyin (API anahtarı veya Read Access Token):
 ```env
 VITE_TMDB_API_KEY=your_tmdb_api_key_here
+VITE_TMDB_READ_ACCESS_TOKEN=your_tmdb_read_access_token_here
 ```
 
 4. **Geliştirme sunucusunu başlatın**:

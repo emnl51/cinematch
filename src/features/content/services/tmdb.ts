@@ -1,4 +1,5 @@
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const TMDB_READ_ACCESS_TOKEN = import.meta.env.VITE_TMDB_READ_ACCESS_TOKEN;
 const TMDB_BASE_URL = import.meta.env.VITE_TMDB_BASE_URL || 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p';
 
@@ -87,13 +88,21 @@ export class TMDbService {
     return TMDbService.instance;
   }
 
-  private validateApiKey(): void {
-    if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
-      const errorMessage = 'TMDb API key is not configured. Please follow these steps:\n\n' +
-        '1. Get a free API key from https://www.themoviedb.org/settings/api\n' +
-        '2. Copy your API key\n' +
+  private hasValidApiKey(): boolean {
+    return Boolean(TMDB_API_KEY && TMDB_API_KEY !== 'your_tmdb_api_key_here');
+  }
+
+  private hasReadAccessToken(): boolean {
+    return Boolean(TMDB_READ_ACCESS_TOKEN);
+  }
+
+  private validateCredentials(): void {
+    if (!this.hasValidApiKey() && !this.hasReadAccessToken()) {
+      const errorMessage = 'TMDb API credentials are not configured. Please follow these steps:\n\n' +
+        '1. Get a free API key or Read Access Token from https://www.themoviedb.org/settings/api\n' +
+        '2. Copy your API key or Read Access Token\n' +
         '3. Open the .env file in your project root\n' +
-        '4. Replace "your_tmdb_api_key_here" with your actual API key\n' +
+        '4. Set VITE_TMDB_API_KEY or VITE_TMDB_READ_ACCESS_TOKEN\n' +
         '5. Restart the development server\n\n' +
         'For detailed instructions, see the README.md file.';
       
@@ -102,15 +111,45 @@ export class TMDbService {
     }
   }
 
+  private appendApiKey(url: string): string {
+    if (!this.hasValidApiKey()) {
+      return url;
+    }
+
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}api_key=${TMDB_API_KEY}`;
+  }
+
+  private buildUrl(endpoint: string): string {
+    return this.appendApiKey(`${TMDB_BASE_URL}/${endpoint}`);
+  }
+
+  private buildRequestHeaders(): HeadersInit {
+    if (!this.hasReadAccessToken()) {
+      return {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'CineMatch/1.0.0'
+      };
+    }
+
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'CineMatch/1.0.0',
+      'Authorization': `Bearer ${TMDB_READ_ACCESS_TOKEN}`
+    };
+  }
+
   // Public method to make requests (for TMDbRecommendationService)
   async makeRequest<T>(endpoint: string, cacheKey?: string): Promise<T> {
-    const url = `${TMDB_BASE_URL}/${endpoint}${endpoint.includes('?') ? '&' : '?'}api_key=${TMDB_API_KEY}`;
+    const url = this.buildUrl(endpoint);
     return this.makeRequestInternal<T>(url, cacheKey);
   }
 
   private async makeRequestInternal<T>(url: string, cacheKey?: string): Promise<T> {
     // Validate API key before making requests
-    this.validateApiKey();
+    this.validateCredentials();
 
     // Check cache first
     if (cacheKey) {
@@ -238,22 +277,17 @@ export class TMDbService {
       
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'CineMatch/1.0.0'
-        }
+        headers: this.buildRequestHeaders()
       });
       
       clearTimeout(timeoutId);
       
       if (!response.ok) {
         if (response.status === 401) {
-          const errorMessage = 'Invalid TMDb API key. Please check your API key:\n\n' +
-            '1. Verify your API key is correct in the .env file\n' +
-            '2. Make sure you\'re using the API Read Access Token (v4), not the API Key (v3)\n' +
-            '3. Check that your API key is active at https://www.themoviedb.org/settings/api\n' +
-            '4. Restart the development server after updating the .env file';
+          const errorMessage = 'Invalid TMDb API credentials. Please check your API key or Read Access Token:\n\n' +
+            '1. Verify your API key or Read Access Token is correct in the .env file\n' +
+            '2. Ensure your API key or Read Access Token is active at https://www.themoviedb.org/settings/api\n' +
+            '3. Restart the development server after updating the .env file';
           
           logger.error(errorMessage);
           throw new TMDbError(errorMessage, undefined, undefined, false, true);
@@ -317,7 +351,7 @@ export class TMDbService {
 
     try {
       const data = await this.makeRequestInternal<{ genres: Genre[] }>(
-        `${TMDB_BASE_URL}/genre/movie/list?api_key=${TMDB_API_KEY}&language=tr-TR`,
+        this.appendApiKey(`${TMDB_BASE_URL}/genre/movie/list?language=tr-TR`),
         'movie_genres'
       );
       this.genres = data.genres;
@@ -334,7 +368,7 @@ export class TMDbService {
 
     try {
       const data = await this.makeRequestInternal<{ genres: Genre[] }>(
-        `${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}&language=tr-TR`,
+        this.appendApiKey(`${TMDB_BASE_URL}/genre/tv/list?language=tr-TR`),
         'tv_genres'
       );
       this.tvGenres = data.genres;
@@ -350,7 +384,7 @@ export class TMDbService {
     
     try {
       return await this.makeRequestInternal<TMDbResponse<Movie>>(
-        `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/search/movie?language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`),
         cacheKey
       );
     } catch (error) {
@@ -364,7 +398,7 @@ export class TMDbService {
     
     try {
       return await this.makeRequestInternal<TMDbResponse<TVShow>>(
-        `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/search/tv?language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`),
         cacheKey
       );
     } catch (error) {
@@ -378,7 +412,7 @@ export class TMDbService {
     
     try {
       return await this.makeRequestInternal<TMDbResponse<Person>>(
-        `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/search/person?language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`),
         cacheKey
       );
     } catch (error) {
@@ -392,7 +426,7 @@ export class TMDbService {
     
     try {
       const data = await this.makeRequestInternal<TMDbResponse<Movie | TVShow>>(
-        `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/search/multi?language=tr-TR&query=${encodeURIComponent(query)}&page=${page}`),
         cacheKey
       );
       
@@ -514,7 +548,7 @@ export class TMDbService {
   async getPopularMovies(page = 1): Promise<TMDbResponse<Movie>> {
     try {
       return await this.makeRequestInternal<TMDbResponse<Movie>>(
-        `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=tr-TR&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/movie/popular?language=tr-TR&page=${page}`),
         `popular_movies_${page}`
       );
     } catch (error) {
@@ -526,7 +560,7 @@ export class TMDbService {
   async getPopularTVShows(page = 1): Promise<TMDbResponse<TVShow>> {
     try {
       return await this.makeRequestInternal<TMDbResponse<TVShow>>(
-        `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=tr-TR&page=${page}`,
+        this.appendApiKey(`${TMDB_BASE_URL}/tv/popular?language=tr-TR&page=${page}`),
         `popular_tv_${page}`
       );
     } catch (error) {
@@ -540,7 +574,7 @@ export class TMDbService {
     
     try {
       const response = await this.makeRequestInternal<Movie>(
-        `${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&append_to_response=credits,videos,keywords,external_ids`,
+        this.appendApiKey(`${TMDB_BASE_URL}/movie/${movieId}?append_to_response=credits,videos,keywords,external_ids`),
         cacheKey
       );
       
@@ -557,7 +591,7 @@ export class TMDbService {
     
     try {
       const response = await this.makeRequestInternal<TVShow>(
-        `${TMDB_BASE_URL}/tv/${tvId}?api_key=${TMDB_API_KEY}&append_to_response=credits,videos,keywords,external_ids`,
+        this.appendApiKey(`${TMDB_BASE_URL}/tv/${tvId}?append_to_response=credits,videos,keywords,external_ids`),
         cacheKey
       );
       
@@ -580,7 +614,7 @@ export class TMDbService {
     try {
       logger.debug('Fetch movie credits for personId:', personId);
       const data = await this.makeRequestInternal<PersonCreditsResponse>(
-        `${TMDB_BASE_URL}/person/${personId}/movie_credits?api_key=${TMDB_API_KEY}&language=tr-TR`,
+        this.appendApiKey(`${TMDB_BASE_URL}/person/${personId}/movie_credits?language=tr-TR`),
         cacheKey
       );
       
@@ -609,7 +643,7 @@ export class TMDbService {
     try {
       logger.debug('Fetch TV credits for personId:', personId);
       const data = await this.makeRequestInternal<PersonCreditsResponse>(
-        `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=tr-TR`,
+        this.appendApiKey(`${TMDB_BASE_URL}/person/${personId}/tv_credits?language=tr-TR`),
         cacheKey
       );
       
@@ -672,12 +706,15 @@ export class TMDbService {
   async discoverMovies(params: DiscoverMovieParams): Promise<TMDbResponse<Movie>> {
     try {
       const queryParams = new URLSearchParams({
-        api_key: TMDB_API_KEY,
         language: 'tr-TR',
         ...Object.fromEntries(
           Object.entries(params).map(([key, value]) => [key, String(value)])
         )
       });
+
+      if (this.hasValidApiKey()) {
+        queryParams.set('api_key', TMDB_API_KEY);
+      }
 
       return await this.makeRequestInternal<TMDbResponse<Movie>>(
         `${TMDB_BASE_URL}/discover/movie?${queryParams}`
@@ -691,12 +728,15 @@ export class TMDbService {
   async discoverTVShows(params: DiscoverTVParams): Promise<TMDbResponse<TVShow>> {
     try {
       const queryParams = new URLSearchParams({
-        api_key: TMDB_API_KEY,
         language: 'tr-TR',
         ...Object.fromEntries(
           Object.entries(params).map(([key, value]) => [key, String(value)])
         )
       });
+
+      if (this.hasValidApiKey()) {
+        queryParams.set('api_key', TMDB_API_KEY);
+      }
 
       return await this.makeRequestInternal<TMDbResponse<TVShow>>(
         `${TMDB_BASE_URL}/discover/tv?${queryParams}`
