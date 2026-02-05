@@ -32,7 +32,6 @@ export interface AppSettings {
   showAdultContent: boolean;
   minContentRating: number;
   minTmdbScore: number;
-  minTmdbVoteCount: number;
   showKidsContent: boolean;
   showAnimationContent: boolean;
   showAnimeContent: boolean;
@@ -90,7 +89,6 @@ const defaultSettings: AppSettings = {
   showAdultContent: false,
   minContentRating: 6.0,
   minTmdbScore: 6.0,
-  minTmdbVoteCount: 100,
   showKidsContent: false,
   showAnimationContent: true,
   showAnimeContent: true,
@@ -631,25 +629,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-6">
-                      <label className="block text-sm font-medium text-theme-primary mb-3">
-                        Minimum Oy Sayısı: {localSettings.minTmdbVoteCount}
-                      </label>
-                      <p className="text-xs text-theme-tertiary mb-3">TMDB'de minimum kaç kişi puanlamış olması gerekir</p>
-                      <input
-                        type="range"
-                        min="10"
-                        max="5000"
-                        step="50"
-                        value={localSettings.minTmdbVoteCount}
-                        onChange={(e) => updateSetting('minTmdbVoteCount', parseInt(e.target.value))}
-                        className="w-full h-2 bg-theme-tertiary rounded-lg appearance-none cursor-pointer slider"
-                      />
-                      <div className="flex justify-between text-xs text-theme-tertiary mt-2">
-                        <span>10</span>
-                        <span>5000</span>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Content Categories */}
