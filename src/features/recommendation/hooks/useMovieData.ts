@@ -584,13 +584,88 @@ export const useMovieData = (settings?: AppSettings) => {
 
   // Filter recommendations when filters change with error handling
   useEffect(() => {
-    if (!Array.isArray(recommendations) || recommendations.length === 0) return;
+    if (!Array.isArray(recommendations) || recommendations.length === 0) {
+      safeSetState(setFilteredRecommendationsLocal, [], []);
+      return;
+    }
     
     try {
+      const resolveMediaType = (item: Movie | TVShow) => {
+        if (item.media_type) {
+          return item.media_type;
+        }
+        return 'title' in item ? 'movie' : 'tv';
+      };
+
+      const resolveYear = (item: Movie | TVShow) => {
+        const date = 'release_date' in item ? item.release_date : item.first_air_date;
+        if (!date) {
+          return 0;
+        }
+        const year = Number(date.slice(0, 4));
+        return Number.isNaN(year) ? 0 : year;
+      };
+
       const filterRecommendations = () => {
-        // Artık filtreler yeni öneriler oluştururken kullanılacak, mevcut önerileri filtrelemeyecek
-        // Sadece sıralama uygulanacak
-        const filtered = [...recommendations];
+        let filtered = [...recommendations];
+
+        // Çocuk içeriklerini her zaman filtrele (TMDb filtreleri ile uyumlu)
+        filtered = filtered.filter(rec => {
+          if (!rec?.movie?.genre_ids) return true;
+          const isKidsGenre = rec.movie.genre_ids.includes(16) || rec.movie.genre_ids.includes(10751);
+          return !isKidsGenre;
+        });
+
+        if (recommendationFilters.mediaType !== 'all') {
+          filtered = filtered.filter(rec => resolveMediaType(rec.movie) === recommendationFilters.mediaType);
+        }
+
+        if (Array.isArray(recommendationFilters.genres) && recommendationFilters.genres.length > 0) {
+          filtered = filtered.filter(rec => {
+            if (!rec.movie?.genre_ids || !Array.isArray(rec.movie.genre_ids)) return false;
+            return recommendationFilters.genres.some(genreId => rec.movie.genre_ids.includes(genreId));
+          });
+        }
+
+        filtered = filtered.filter(rec => {
+          if (!rec?.movie || typeof rec.movie.vote_average !== 'number' || typeof rec.movie.vote_count !== 'number') {
+            return false;
+          }
+          const minRating = Math.max(6.0, recommendationFilters.minRating);
+          return rec.movie.vote_average >= minRating && 
+            rec.movie.vote_average <= recommendationFilters.maxRating &&
+            rec.movie.vote_count >= 100;
+        });
+
+        filtered = filtered.filter(rec => {
+          const year = resolveYear(rec.movie);
+          if (!year) return true;
+          return year >= recommendationFilters.minYear && year <= recommendationFilters.maxYear;
+        });
+
+        filtered = filtered.filter(rec => (rec.matchScore || 0) >= recommendationFilters.minMatchScore);
+
+        if (Array.isArray(recommendationFilters.languages) && recommendationFilters.languages.length > 0) {
+          filtered = filtered.filter(rec => {
+            const language = rec.movie?.original_language;
+            return language ? recommendationFilters.languages?.includes(language) : false;
+          });
+        }
+
+        if (recommendationFilters.showAnimationContent === false) {
+          filtered = filtered.filter(rec => {
+            if (!rec?.movie?.genre_ids) return true;
+            return !rec.movie.genre_ids.includes(16);
+          });
+        }
+
+        if (recommendationFilters.showAnimeContent === false) {
+          filtered = filtered.filter(rec => {
+            if (!rec?.movie?.genre_ids) return true;
+            const isAnime = rec.movie.genre_ids.includes(16) && rec.movie.original_language === 'ja';
+            return !isAnime;
+          });
+        }
 
         // Sort with error handling
         filtered.sort((a, b) => {
@@ -601,13 +676,7 @@ export const useMovieData = (settings?: AppSettings) => {
               case 'rating':
                 return (b.movie?.vote_average || 0) - (a.movie?.vote_average || 0);
               case 'year':
-                const yearA = 'release_date' in (a.movie || {}) ? 
-                  new Date((a.movie as any).release_date || '').getFullYear() : 
-                  new Date((a.movie as any).first_air_date || '').getFullYear();
-                const yearB = 'release_date' in (b.movie || {}) ? 
-                  new Date((b.movie as any).release_date || '').getFullYear() : 
-                  new Date((b.movie as any).first_air_date || '').getFullYear();
-                return (yearB || 0) - (yearA || 0);
+                return resolveYear(b.movie) - resolveYear(a.movie);
               case 'title':
                 const titleA = 'title' in (a.movie || {}) ? (a.movie as any).title : (a.movie as any).name;
                 const titleB = 'title' in (b.movie || {}) ? (b.movie as any).title : (b.movie as any).name;
@@ -632,7 +701,12 @@ export const useMovieData = (settings?: AppSettings) => {
         handleError(new Error(String(error)), 'Öneri filtreleme');
       }
     }
-  }, [recommendations, recommendationFilters.sortBy, handleError, safeSetState]);
+  }, [
+    recommendations,
+    recommendationFilters,
+    handleError,
+    safeSetState
+  ]);
 
   // Filter curated content when filters change with error handling
   useEffect(() => {
