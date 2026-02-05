@@ -38,6 +38,7 @@ export class CuratedMovieService {
     watchlistItems: { id: number }[] = [],
     settings?: {
       discoveryContentCount?: number;
+      showKidsContent?: boolean;
     }
   ): Promise<(Movie | TVShow)[]> {
     const curatedContent: (Movie | TVShow)[] = [];
@@ -50,6 +51,13 @@ export class CuratedMovieService {
     ]);
 
     const targetContentCount = settings?.discoveryContentCount || 20;
+
+    const allowKidsContent = settings?.showKidsContent ?? false;
+    const filterKidsContent = <T extends { genre_ids?: number[] }>(items: T[]) => (
+      allowKidsContent
+        ? items
+        : items.filter(content => !((content.genre_ids || []).includes(16) || (content.genre_ids || []).includes(10751)))
+    );
 
     // Filtreleme yoksa yüksek kaliteli popüler içerikler getir
     if (existingRatings.length === 0) {
@@ -111,12 +119,12 @@ export class CuratedMovieService {
         });
 
         // Tüm içerikleri birleştir ve karıştır
-        const allContent = [
+        const allContent = filterKidsContent([
           ...popularMoviesResponse.results.slice(0, 8).map(movie => ({ ...movie, media_type: 'movie' as const })),
           ...topRatedMoviesResponse.results.slice(0, 6).map(movie => ({ ...movie, media_type: 'movie' as const })),
           ...popularTVResponse.results.slice(0, 6).map(show => ({ ...show, media_type: 'tv' as const })),
           ...topRatedTVResponse.results.slice(0, 4).map(show => ({ ...show, media_type: 'tv' as const }))
-        ].filter(content => !((content.genre_ids || []).includes(16) || (content.genre_ids || []).includes(10751)));
+        ]);
 
         // İçerikleri karıştır ve tekrarları kaldır
         const shuffledContent = allContent
@@ -168,7 +176,7 @@ export class CuratedMovieService {
       
       try {
         // Film seç
-        const movie = await this.getRandomMovieFromGroup(group.genres, usedContentIds, excludedContentIds);
+        const movie = await this.getRandomMovieFromGroup(group.genres, usedContentIds, excludedContentIds, allowKidsContent);
         if (movie) {
           curatedContent.push(movie);
           usedContentIds.add(movie.id);
@@ -176,7 +184,7 @@ export class CuratedMovieService {
 
         // Dizi seç (50% şans)
         if (Math.random() > 0.5) {
-          const tvShow = await this.getRandomTVShowFromGroup(group.genres, usedContentIds, excludedContentIds);
+          const tvShow = await this.getRandomTVShowFromGroup(group.genres, usedContentIds, excludedContentIds, allowKidsContent);
           if (tvShow) {
             curatedContent.push(tvShow);
             usedContentIds.add(tvShow.id);
@@ -197,7 +205,7 @@ export class CuratedMovieService {
       });
       
       try {
-        const additionalContent = await this.getAdditionalPopularContent(usedContentIds, excludedContentIds, targetContentCount - curatedContent.length);
+        const additionalContent = await this.getAdditionalPopularContent(usedContentIds, excludedContentIds, targetContentCount - curatedContent.length, undefined, allowKidsContent);
         curatedContent.push(...additionalContent);
       } catch (error) {
         console.error('Error fetching additional popular content:', error);
@@ -213,7 +221,12 @@ export class CuratedMovieService {
     return curatedContent.slice(0, targetContentCount);
   }
 
-  private static async getRandomMovieFromGroup(genreIds: number[], usedContentIds: Set<number>, excludedContentIds: Set<number>): Promise<Movie | null> {
+  private static async getRandomMovieFromGroup(
+    genreIds: number[],
+    usedContentIds: Set<number>,
+    excludedContentIds: Set<number>,
+    allowKidsContent: boolean
+  ): Promise<Movie | null> {
     // Birden fazla sayfa dene
     for (let attempt = 0; attempt < 8; attempt++) {
       const randomPage = Math.floor(Math.random() * 5) + 1; // İlk 5 sayfa daha kaliteli
@@ -232,7 +245,7 @@ export class CuratedMovieService {
         // Puanlanmamış, kullanılmamış ve watchlist'te olmayan filmleri filtrele
         const availableMovies = response.results
           .filter(movie => !usedContentIds.has(movie.id) && !excludedContentIds.has(movie.id))
-          .filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)))
+          .filter(movie => allowKidsContent || !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)))
           .slice(0, 8);
         
         if (availableMovies.length > 0) {
@@ -250,7 +263,12 @@ export class CuratedMovieService {
     return null;
   }
 
-  private static async getRandomTVShowFromGroup(genreIds: number[], usedContentIds: Set<number>, excludedContentIds: Set<number>): Promise<TVShow | null> {
+  private static async getRandomTVShowFromGroup(
+    genreIds: number[],
+    usedContentIds: Set<number>,
+    excludedContentIds: Set<number>,
+    allowKidsContent: boolean
+  ): Promise<TVShow | null> {
     // Birden fazla sayfa dene
     for (let attempt = 0; attempt < 8; attempt++) {
       const randomPage = Math.floor(Math.random() * 5) + 1; // İlk 5 sayfa daha kaliteli
@@ -269,7 +287,7 @@ export class CuratedMovieService {
         // Puanlanmamış, kullanılmamış ve watchlist'te olmayan dizileri filtrele
         const availableShows = response.results
           .filter(show => !usedContentIds.has(show.id) && !excludedContentIds.has(show.id))
-          .filter(show => !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)))
+          .filter(show => allowKidsContent || !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)))
           .slice(0, 8);
         
         if (availableShows.length > 0) {
@@ -287,7 +305,13 @@ export class CuratedMovieService {
     return null;
   }
 
-  private static async getAdditionalPopularContent(usedContentIds: Set<number>, excludedContentIds: Set<number>, count: number, filters?: CuratedContentFilters): Promise<(Movie | TVShow)[]> {
+  private static async getAdditionalPopularContent(
+    usedContentIds: Set<number>,
+    excludedContentIds: Set<number>,
+    count: number,
+    filters?: CuratedContentFilters,
+    allowKidsContent = false
+  ): Promise<(Movie | TVShow)[]> {
     const additionalContent: (Movie | TVShow)[] = [];
     
     // Hem film hem dizi için yüksek kaliteli popüler içerik al
@@ -311,7 +335,7 @@ export class CuratedMovieService {
 
           const availableMovies = response.results.filter(
             movie => !usedContentIds.has(movie.id) && !excludedContentIds.has(movie.id)
-          ).filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)));
+          ).filter(movie => allowKidsContent || !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)));
           
           for (const movie of availableMovies) {
             if (additionalContent.length >= count) break;
@@ -331,7 +355,7 @@ export class CuratedMovieService {
 
           const availableShows = response.results.filter(
             show => !usedContentIds.has(show.id) && !excludedContentIds.has(show.id)
-          ).filter(show => !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)));
+          ).filter(show => allowKidsContent || !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)));
           
           for (const show of availableShows) {
             if (additionalContent.length >= count) break;
@@ -475,7 +499,10 @@ export class CuratedMovieService {
           page: 1
         });
 
-        return fallbackResponse.results.slice(0, 10).map(movie => ({ ...movie, media_type: 'movie' as const })).filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)));
+        return fallbackResponse.results
+          .slice(0, 10)
+          .map(movie => ({ ...movie, media_type: 'movie' as const }))
+          .filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)));
       } catch (fallbackError) {
         console.error('Fallback content loading also failed:', fallbackError);
         return [];
@@ -489,6 +516,7 @@ export class CuratedMovieService {
     watchlistItems: { id: number }[] = [],
     settings?: {
       discoveryContentCount?: number;
+      showKidsContent?: boolean;
     }
   ): Promise<(Movie | TVShow)[]> {
     const curatedContent: (Movie | TVShow)[] = [];
@@ -497,6 +525,13 @@ export class CuratedMovieService {
       ...existingRatings.map(r => r.movieId),
       ...watchlistItems.map(item => item.id)
     ]);
+
+    const allowKidsContent = settings?.showKidsContent ?? false;
+    const filterKidsContent = <T extends { genre_ids?: number[] }>(items: T[]) => (
+      allowKidsContent
+        ? items
+        : items.filter(content => !((content.genre_ids || []).includes(16) || (content.genre_ids || []).includes(10751)))
+    );
 
     try {
       // Filtrelere göre içerik arama parametreleri
@@ -536,9 +571,8 @@ export class CuratedMovieService {
         });
         
         const contentCount = settings?.discoveryContentCount || 20;
-        const availableMovies = movieResponse.results
+        const availableMovies = filterKidsContent(movieResponse.results)
           .filter(movie => !usedContentIds.has(movie.id) && !excludedContentIds.has(movie.id))
-          .filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)))
           .slice(0, contentCount);
         
         for (const movie of availableMovies) {
@@ -554,9 +588,8 @@ export class CuratedMovieService {
         });
         
         const minContentCount = settings?.discoveryContentCount || 20;
-        const availableShows = tvResponse.results
+        const availableShows = filterKidsContent(tvResponse.results)
           .filter(show => !usedContentIds.has(show.id) && !excludedContentIds.has(show.id))
-          .filter(show => !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)))
           .slice(0, minContentCount);
         
         for (const show of availableShows) {
@@ -578,14 +611,12 @@ export class CuratedMovieService {
         ]);
 
         const halfCount = Math.ceil((settings?.discoveryContentCount || 20) / 2);
-        const availableMovies = movieResponse.results
+        const availableMovies = filterKidsContent(movieResponse.results)
           .filter(movie => !usedContentIds.has(movie.id) && !excludedContentIds.has(movie.id))
-          .filter(movie => !((movie.genre_ids || []).includes(16) || (movie.genre_ids || []).includes(10751)))
           .slice(0, halfCount);
         
-        const availableShows = tvResponse.results
+        const availableShows = filterKidsContent(tvResponse.results)
           .filter(show => !usedContentIds.has(show.id) && !excludedContentIds.has(show.id))
-          .filter(show => !((show.genre_ids || []).includes(16) || (show.genre_ids || []).includes(10751)))
           .slice(0, halfCount);
 
         for (const movie of availableMovies) {
@@ -604,7 +635,13 @@ export class CuratedMovieService {
       // Eğer yeterli içerik yoksa, ek içerik ara
       const minContentCount = Math.ceil((settings?.discoveryContentCount || 20) * 0.75);
       if (curatedContent.length < minContentCount) {
-        const additionalContent = await this.getAdditionalPopularContent(usedContentIds, excludedContentIds, minContentCount - curatedContent.length, filters);
+        const additionalContent = await this.getAdditionalPopularContent(
+          usedContentIds,
+          excludedContentIds,
+          minContentCount - curatedContent.length,
+          filters,
+          allowKidsContent
+        );
         curatedContent.push(...additionalContent);
       }
 

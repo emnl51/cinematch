@@ -127,14 +127,17 @@ export class RecommendationService {
 
     // Final filtreleme ve sıralama
     let filteredRecommendations = recommendations
-      .filter(rec => !ratedContentIds.has(rec.movie.id) && !watchlistContentIds.has(rec.movie.id))
-      // Çocuk içeriklerini her zaman filtrele
-      .filter(rec => {
+      .filter(rec => !ratedContentIds.has(rec.movie.id) && !watchlistContentIds.has(rec.movie.id));
+
+    const allowKidsContent = filters?.showKidsContent ?? settings?.showKidsContent ?? false;
+    if (!allowKidsContent) {
+      filteredRecommendations = filteredRecommendations.filter(rec => {
         if (!rec?.movie?.genre_ids) return true;
         // 16: Animasyon, 10751: Aile
         const isKidsGenre = rec.movie.genre_ids.includes(16) || rec.movie.genre_ids.includes(10751);
         return !isKidsGenre;
       });
+    }
 
     // Filtreleri uygula
     if (filters) {

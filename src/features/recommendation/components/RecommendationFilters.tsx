@@ -13,6 +13,9 @@ interface RecommendationFiltersProps {
     sortBy: 'match_score' | 'rating' | 'year' | 'title';
     minMatchScore: number;
     languages?: string[]; // Yeni eklenen dil filtresi
+    showKidsContent?: boolean;
+    showAnimationContent?: boolean;
+    showAnimeContent?: boolean;
   };
   genres: Genre[];
   onFiltersChange: (filters: any) => void;
@@ -95,6 +98,36 @@ const LANGUAGE_OPTIONS = [
   { code: 'nd', name: 'Kuzey Ndebele', flag: '🇿🇦' }
 ];
 
+const FALLBACK_GENRES: Genre[] = [
+  { id: 28, name: 'Aksiyon' },
+  { id: 12, name: 'Macera' },
+  { id: 16, name: 'Animasyon' },
+  { id: 35, name: 'Komedi' },
+  { id: 80, name: 'Suç' },
+  { id: 99, name: 'Belgesel' },
+  { id: 18, name: 'Dram' },
+  { id: 10751, name: 'Aile' },
+  { id: 14, name: 'Fantastik' },
+  { id: 36, name: 'Tarih' },
+  { id: 27, name: 'Korku' },
+  { id: 10402, name: 'Müzik' },
+  { id: 9648, name: 'Gizem' },
+  { id: 10749, name: 'Romantik' },
+  { id: 878, name: 'Bilim Kurgu' },
+  { id: 10770, name: 'TV Filmi' },
+  { id: 53, name: 'Gerilim' },
+  { id: 10752, name: 'Savaş' },
+  { id: 37, name: 'Western' },
+  { id: 10759, name: 'Aksiyon & Macera' },
+  { id: 10765, name: 'Bilim Kurgu & Fantazi' },
+  { id: 10762, name: 'Çocuk' },
+  { id: 10763, name: 'Haber' },
+  { id: 10764, name: 'Gerçeklik' },
+  { id: 10766, name: 'Pembe Dizi' },
+  { id: 10767, name: 'Talk' },
+  { id: 10768, name: 'Savaş & Politik' }
+];
+
 export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React.memo(({
   filters,
   genres,
@@ -127,9 +160,12 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
       mediaType: 'all',
       sortBy: 'match_score',
       minMatchScore: 0,
-      languages: []
+      languages: [],
+      showKidsContent: filters.showKidsContent,
+      showAnimationContent: filters.showAnimationContent,
+      showAnimeContent: filters.showAnimeContent
     });
-  }, [onFiltersChange]);
+  }, [filters.showAnimeContent, filters.showAnimationContent, filters.showKidsContent, onFiltersChange]);
 
   const activeFiltersCount = useMemo(() => 
     filters.genres.length + 
@@ -139,14 +175,19 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
     (filters.minMatchScore !== 0 ? 1 : 0) +
     ((filters.languages || []).length > 0 ? 1 : 0), [filters]);
 
+  const usingFallbackGenres = !Array.isArray(genres) || genres.length === 0;
+  const effectiveGenres = useMemo(() => (
+    usingFallbackGenres ? FALLBACK_GENRES : genres
+  ), [genres, usingFallbackGenres]);
+
   const popularGenreIds = [28, 35, 18, 12, 878, 27, 10749, 53, 16, 80, 14, 10765];
-  const genreMap = useMemo(() => new Map(genres.map(genre => [genre.id, genre])), [genres]);
+  const genreMap = useMemo(() => new Map(effectiveGenres.map(genre => [genre.id, genre])), [effectiveGenres]);
   const popularGenres = useMemo(() => popularGenreIds
     .map(id => genreMap.get(id))
     .filter((genre): genre is Genre => Boolean(genre)), [genreMap]);
 
   // Popüler türleri önce göster
-  const sortedGenres = useMemo(() => [...genres].sort((a, b) => {
+  const sortedGenres = useMemo(() => [...effectiveGenres].sort((a, b) => {
     const aIndex = popularGenreIds.indexOf(a.id);
     const bIndex = popularGenreIds.indexOf(b.id);
     
@@ -154,7 +195,7 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
     if (aIndex !== -1) return -1;
     if (bIndex !== -1) return 1;
     return a.name.localeCompare(b.name, 'tr');
-  }), [genres, popularGenreIds]);
+  }), [effectiveGenres, popularGenreIds]);
 
   const [showOtherLanguages, setShowOtherLanguages] = React.useState(false);
 
@@ -429,6 +470,11 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
             <label className="block text-sm font-medium text-theme-primary mb-2">
               Türler (Yeni Önerilerde) ({filters.genres.length} seçili)
             </label>
+            {usingFallbackGenres && (
+              <p className="text-xs text-amber-400 mb-2">
+                Tür listesi yüklenemedi, varsayılan türler gösteriliyor.
+              </p>
+            )}
             
             {/* Popüler türler için hızlı seçim */}
             <div className="mb-3">
