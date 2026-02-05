@@ -315,7 +315,7 @@ export class TMDbRecommendationService {
       );
 
       // Minimum match score filtresi
-      const minMatchScore = filters?.minMatchScore || 60;
+      const minMatchScore = filters?.minMatchScore ?? 60;
       if (matchScore < minMatchScore) {
         continue;
       }

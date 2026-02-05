@@ -13,6 +13,9 @@ interface RecommendationFiltersProps {
     sortBy: 'match_score' | 'rating' | 'year' | 'title';
     minMatchScore: number;
     languages?: string[]; // Yeni eklenen dil filtresi
+    showKidsContent?: boolean;
+    showAnimationContent?: boolean;
+    showAnimeContent?: boolean;
   };
   genres: Genre[];
   onFiltersChange: (filters: any) => void;
@@ -127,9 +130,12 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
       mediaType: 'all',
       sortBy: 'match_score',
       minMatchScore: 0,
-      languages: []
+      languages: [],
+      showKidsContent: filters.showKidsContent,
+      showAnimationContent: filters.showAnimationContent,
+      showAnimeContent: filters.showAnimeContent
     });
-  }, [onFiltersChange]);
+  }, [filters.showAnimeContent, filters.showAnimationContent, filters.showKidsContent, onFiltersChange]);
 
   const activeFiltersCount = useMemo(() => 
     filters.genres.length + 
