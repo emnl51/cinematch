@@ -27,7 +27,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
   showMatchScore = true
 }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
   const [movieDetails, setMovieDetails] = useState<any>(null);
+  const [trailerKey, setTrailerKey] = useState<string | null>(null);
+  const [trailerError, setTrailerError] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -79,6 +82,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
 
   const handleTrailerClick = useCallback(async () => {
     setLoadingTrailer(true);
+    setTrailerError(null);
     try {
       if (!movieDetails) {
         const details = isTV 
@@ -89,22 +93,30 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
         if (details?.videos?.results) {
           const trailerKey = getTrailerKey(details);
           if (trailerKey) {
-            openYouTubeInNewTab(trailerKey);
+            setTrailerKey(trailerKey);
+            setShowTrailer(true);
           } else {
-            window.open(`https://www.themoviedb.org/${isTV ? 'tv' : 'movie'}/${movie.id}`, '_blank', 'noopener,noreferrer');
+            setTrailerKey(null);
+            setTrailerError('Fragman bulunamadı.');
+            setShowTrailer(true);
           }
         }
       } else {
         const trailerKey = getTrailerKey(movieDetails);
         if (trailerKey) {
-          openYouTubeInNewTab(trailerKey);
+          setTrailerKey(trailerKey);
+          setShowTrailer(true);
         } else {
-          window.open(`https://www.themoviedb.org/${isTV ? 'tv' : 'movie'}/${movie.id}`, '_blank', 'noopener,noreferrer');
+          setTrailerKey(null);
+          setTrailerError('Fragman bulunamadı.');
+          setShowTrailer(true);
         }
       }
     } catch (error) {
       console.error('Error loading trailer:', error);
-      window.open(`https://www.themoviedb.org/${isTV ? 'tv' : 'movie'}/${movie.id}`, '_blank', 'noopener,noreferrer');
+      setTrailerKey(null);
+      setTrailerError('Fragman yüklenirken bir sorun oluştu.');
+      setShowTrailer(true);
     } finally {
       setLoadingTrailer(false);
     }
@@ -165,11 +177,6 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
     }
     return (movie as any).release_date;
   }, [isTV, movie]);
-
-  const openYouTubeInNewTab = useCallback((key: string) => {
-    const youtubeUrl = `https://www.youtube.com/watch?v=${key}`;
-    window.open(youtubeUrl, '_blank', 'noopener,noreferrer');
-  }, []);
 
   // Extract topics from overview and keywords
   const getTopics = useCallback((): string[] => {
@@ -793,6 +800,48 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
                   ))}
                 </ul>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTrailer && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full border border-slate-700/50 shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+              <h3 className="text-xl font-bold text-theme-primary">{title} Fragmanı</h3>
+              <button
+                onClick={() => {
+                  setShowTrailer(false);
+                  setTrailerKey(null);
+                  setTrailerError(null);
+                }}
+                className="text-slate-400 hover:text-theme-primary text-2xl transition-colors"
+                aria-label="Fragmanı kapat"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              {trailerKey ? (
+                <div className="relative w-full overflow-hidden rounded-xl border border-slate-700/50 bg-black">
+                  <div className="pb-[56.25%]" />
+                  <iframe
+                    title={`${title} fragmanı`}
+                    src={tmdbService.getYouTubeUrl(trailerKey)}
+                    className="absolute inset-0 h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-6 text-center text-slate-300">
+                  <p className="text-base font-medium">{trailerError ?? 'Fragman bulunamadı.'}</p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Bu içerik için gömülü fragman şu anda mevcut değil.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
