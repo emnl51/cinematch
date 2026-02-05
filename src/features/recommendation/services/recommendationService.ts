@@ -706,6 +706,17 @@ export class RecommendationService {
     profile: UserProfile,
     ratedContentIds: Set<number>
   ) {
+    const tmdbApiKey = import.meta.env.VITE_TMDB_API_KEY;
+    const tmdbReadAccessToken = import.meta.env.VITE_TMDB_READ_ACCESS_TOKEN;
+    const hasValidApiKey = Boolean(tmdbApiKey && tmdbApiKey !== 'your_tmdb_api_key_here');
+    const tmdbHeaders: HeadersInit = tmdbReadAccessToken
+      ? {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${tmdbReadAccessToken}`
+        }
+      : {
+          'Accept': 'application/json'
+        };
     const topActors = Object.values(profile.favoriteActors)
       .sort((a, b) => b.count - a.count)
       .slice(0, 3)
@@ -713,17 +724,30 @@ export class RecommendationService {
 
     for (const actorName of topActors) {
       try {
-        const searchResponse = await fetch(
-          `https://api.themoviedb.org/3/search/person?api_key=${import.meta.env.VITE_TMDB_API_KEY}&language=tr-TR&query=${encodeURIComponent(actorName)}`
-        );
+        const searchUrl = new URL('https://api.themoviedb.org/3/search/person');
+        searchUrl.searchParams.set('language', 'tr-TR');
+        searchUrl.searchParams.set('query', actorName);
+        if (hasValidApiKey) {
+          searchUrl.searchParams.set('api_key', tmdbApiKey);
+        }
+
+        const searchResponse = await fetch(searchUrl.toString(), {
+          headers: tmdbHeaders
+        });
         const searchData = await searchResponse.json();
         
         if (searchData.results && searchData.results.length > 0) {
           const actor = searchData.results[0];
           
-          const creditsResponse = await fetch(
-            `https://api.themoviedb.org/3/person/${actor.id}/movie_credits?api_key=${import.meta.env.VITE_TMDB_API_KEY}&language=tr-TR`
-          );
+          const creditsUrl = new URL(`https://api.themoviedb.org/3/person/${actor.id}/movie_credits`);
+          creditsUrl.searchParams.set('language', 'tr-TR');
+          if (hasValidApiKey) {
+            creditsUrl.searchParams.set('api_key', tmdbApiKey);
+          }
+
+          const creditsResponse = await fetch(creditsUrl.toString(), {
+            headers: tmdbHeaders
+          });
           const creditsData = await creditsResponse.json();
           
           if (creditsData.cast) {
