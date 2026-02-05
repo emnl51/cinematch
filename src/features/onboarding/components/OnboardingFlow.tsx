@@ -134,7 +134,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               showAdultContent: false,
               minContentRating: 6.0,
               minTmdbScore: 6.0,
-              minTmdbVoteCount: 100,
               showKidsContent: false,
               showAnimationContent: true,
               showAnimeContent: true,

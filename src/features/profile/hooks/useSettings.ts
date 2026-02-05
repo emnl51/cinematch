@@ -12,7 +12,6 @@ const defaultSettings: AppSettings = {
   showAdultContent: false,
   minContentRating: 6.0,
   minTmdbScore: 6.0,
-  minTmdbVoteCount: 100,
   showKidsContent: false,
   showAnimationContent: true,
   showAnimeContent: true,
