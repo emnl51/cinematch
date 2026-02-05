@@ -217,7 +217,6 @@ describe('NeuralModelInfo', () => {
     test('should show evaluation button when model is available', async () => {
       // Mock model info to show model is available
       const mockInitializeModel = vi.fn().mockResolvedValue({
-        isAvailable: true,
         accuracy: 0.85,
         lastTrained: Date.now(),
         trainingData: 25
@@ -241,6 +240,11 @@ describe('NeuralModelInfo', () => {
     });
 
     test('should call evaluateModel when evaluation button is clicked', async () => {
+      const mockInitializeModel = vi.fn().mockResolvedValue({
+        accuracy: 0.85,
+        lastTrained: Date.now(),
+        trainingData: 25
+      });
       const mockEvaluateModel = vi.fn().mockResolvedValue({
         accuracy: 0.85,
         mae: 0.5,
@@ -248,6 +252,7 @@ describe('NeuralModelInfo', () => {
         coverage: 0.9
       });
 
+      (NeuralRecommendationService.initializeModel as any) = mockInitializeModel;
       (NeuralRecommendationService.evaluateModel as any) = mockEvaluateModel;
 
       const sufficientRatings = Array.from({ length: 25 }, (_, i) => ({
