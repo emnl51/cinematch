@@ -27,7 +27,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
   showMatchScore = true
 }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
   const [movieDetails, setMovieDetails] = useState<any>(null);
+  const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -89,7 +91,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
         if (details?.videos?.results) {
           const trailerKey = getTrailerKey(details);
           if (trailerKey) {
-            openYouTubeInNewTab(trailerKey);
+            setTrailerKey(trailerKey);
+            setShowTrailer(true);
           } else {
             window.open(`https://www.themoviedb.org/${isTV ? 'tv' : 'movie'}/${movie.id}`, '_blank', 'noopener,noreferrer');
           }
@@ -97,7 +100,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
       } else {
         const trailerKey = getTrailerKey(movieDetails);
         if (trailerKey) {
-          openYouTubeInNewTab(trailerKey);
+          setTrailerKey(trailerKey);
+          setShowTrailer(true);
         } else {
           window.open(`https://www.themoviedb.org/${isTV ? 'tv' : 'movie'}/${movie.id}`, '_blank', 'noopener,noreferrer');
         }
@@ -165,11 +169,6 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
     }
     return (movie as any).release_date;
   }, [isTV, movie]);
-
-  const openYouTubeInNewTab = useCallback((key: string) => {
-    const youtubeUrl = `https://www.youtube.com/watch?v=${key}`;
-    window.open(youtubeUrl, '_blank', 'noopener,noreferrer');
-  }, []);
 
   // Extract topics from overview and keywords
   const getTopics = useCallback((): string[] => {
@@ -792,6 +791,38 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = React.memo(
                     </li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTrailer && trailerKey && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full border border-slate-700/50 shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+              <h3 className="text-xl font-bold text-theme-primary">{title} Fragmanı</h3>
+              <button
+                onClick={() => {
+                  setShowTrailer(false);
+                  setTrailerKey(null);
+                }}
+                className="text-slate-400 hover:text-theme-primary text-2xl transition-colors"
+                aria-label="Fragmanı kapat"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="relative w-full overflow-hidden rounded-xl border border-slate-700/50 bg-black">
+                <div className="pb-[56.25%]" />
+                <iframe
+                  title={`${title} fragmanı`}
+                  src={tmdbService.getYouTubeUrl(trailerKey)}
+                  className="absolute inset-0 h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
               </div>
             </div>
           </div>
