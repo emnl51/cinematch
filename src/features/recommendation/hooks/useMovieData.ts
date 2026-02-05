@@ -299,14 +299,6 @@ export const useMovieData = (settings?: AppSettings) => {
         );
       }
 
-      // Apply TMDB vote count filter
-      if (settings?.minTmdbVoteCount && typeof settings.minTmdbVoteCount === 'number') {
-        unratedResults = unratedResults.filter(item => 
-          item && typeof item.vote_count === 'number' &&
-          item.vote_count >= settings.minTmdbVoteCount
-        );
-      }
-
       if (settings && !settings.showAdultContent) {
         unratedResults = unratedResults.filter(item => !('adult' in item && !!item.adult));
       }
@@ -355,14 +347,6 @@ export const useMovieData = (settings?: AppSettings) => {
           unratedResults = unratedResults.filter(item => 
             item && typeof item.vote_average === 'number' &&
             item.vote_average >= settings.minTmdbScore
-          );
-        }
-
-        // Apply TMDB vote count filter
-        if (settings?.minTmdbVoteCount && typeof settings.minTmdbVoteCount === 'number') {
-          unratedResults = unratedResults.filter(item => 
-            item && typeof item.vote_count === 'number' &&
-            item.vote_count >= settings.minTmdbVoteCount
           );
         }
 
@@ -517,8 +501,7 @@ export const useMovieData = (settings?: AppSettings) => {
               { ...recommendationFilters, showKidsContent: settings?.showKidsContent ?? false, showAnimationContent: settings?.showAnimationContent ?? true, showAnimeContent: settings?.showAnimeContent ?? true },
               settings ? {
                 recommendationCount: settings.recommendationCount,
-                minTmdbScore: settings.minTmdbScore,
-                minTmdbVoteCount: settings.minTmdbVoteCount
+                minTmdbScore: settings.minTmdbScore
               } : {},
               watchlistIds
             );
@@ -632,14 +615,12 @@ export const useMovieData = (settings?: AppSettings) => {
         }
 
         const minRating = Math.max(settings?.minTmdbScore ?? 0, recommendationFilters.minRating);
-        const minVoteCount = settings?.minTmdbVoteCount ?? 0;
         filtered = filtered.filter(rec => {
-          if (!rec?.movie || typeof rec.movie.vote_average !== 'number' || typeof rec.movie.vote_count !== 'number') {
+          if (!rec?.movie || typeof rec.movie.vote_average !== 'number') {
             return false;
           }
           return rec.movie.vote_average >= minRating && 
-            rec.movie.vote_average <= recommendationFilters.maxRating &&
-            rec.movie.vote_count >= minVoteCount;
+            rec.movie.vote_average <= recommendationFilters.maxRating;
         });
 
         filtered = filtered.filter(rec => {
@@ -1044,8 +1025,7 @@ export const useMovieData = (settings?: AppSettings) => {
             { ...recommendationFilters, showKidsContent: settings?.showKidsContent ?? false, showAnimationContent: settings?.showAnimationContent ?? true, showAnimeContent: settings?.showAnimeContent ?? true },
             settings ? {
               recommendationCount: settings.recommendationCount,
-              minTmdbScore: settings.minTmdbScore,
-              minTmdbVoteCount: settings.minTmdbVoteCount
+              minTmdbScore: settings.minTmdbScore
             } : {},
             watchlistIds
           );
@@ -1215,8 +1195,7 @@ export const useMovieData = (settings?: AppSettings) => {
         recommendationFilters, // Filtreleri geçir
         settings ? {
           recommendationCount: settings.recommendationCount,
-          minTmdbScore: settings.minTmdbScore,
-          minTmdbVoteCount: settings.minTmdbVoteCount
+          minTmdbScore: settings.minTmdbScore
         } : {} // Ayarları geçir
       );
       
