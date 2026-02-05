@@ -24,6 +24,7 @@ export const NeuralModelInfo: React.FC<NeuralModelInfoProps> = ({
     rmse: number;
     coverage: number;
   } | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   useEffect(() => {
     loadModelInfo();
@@ -82,12 +83,28 @@ export const NeuralModelInfo: React.FC<NeuralModelInfoProps> = ({
 
   const handleEvaluateModel = async () => {
     if (!profile) return;
+    const ratingCount = ratings.filter(r => typeof r.rating === 'number').length;
+    const canTrainModel = ratingCount >= 20;
+    const canEvaluate = ratingCount >= 10;
 
+    if (!canEvaluate) return;
+
+    setIsEvaluating(true);
     try {
+      if (!modelInfo?.isAvailable && canTrainModel) {
+        setIsTraining(true);
+        await NeuralRecommendationService.trainModel(ratings, profile);
+        await loadModelInfo();
+      }
+
       const evalResult = await NeuralRecommendationService.evaluateModel(ratings, profile);
       setEvaluation(evalResult);
     } catch (error) {
       console.error('Evaluation failed:', error);
+    }
+    finally {
+      setIsTraining(false);
+      setIsEvaluating(false);
     }
   };
 
@@ -103,7 +120,9 @@ export const NeuralModelInfo: React.FC<NeuralModelInfoProps> = ({
     );
   }
 
-  const canTrain = ratings.filter(r => typeof r.rating === 'number').length >= 20;
+  const trainingDataCount = ratings.filter(r => typeof r.rating === 'number').length;
+  const canTrain = trainingDataCount >= 20;
+  const canEvaluate = trainingDataCount >= 10;
   const lastTrainedDate = modelInfo.lastTrained ? new Date(modelInfo.lastTrained) : null;
   const daysSinceTraining = lastTrainedDate ? 
     Math.floor((Date.now() - lastTrainedDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -222,23 +241,24 @@ export const NeuralModelInfo: React.FC<NeuralModelInfoProps> = ({
           </button>
         )}
         
-        {modelInfo.isAvailable && modelInfo.trainingData >= 10 && (
+        {canEvaluate && (
           <button
             onClick={handleEvaluateModel}
-            className="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-all duration-200 font-medium"
+            disabled={isEvaluating || isTraining}
+            className="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700/50 text-white px-4 py-2 rounded-lg transition-all duration-200 font-medium"
           >
             <Target className="h-4 w-4" />
-            <span>Değerlendir</span>
+            <span>{modelInfo.isAvailable ? 'Değerlendir' : 'Eğit ve değerlendir'}</span>
           </button>
         )}
         
         {/* Debug info for button visibility */}
-        {!modelInfo.isAvailable && (
+        {!modelInfo.isAvailable && canEvaluate && (
           <div className="text-xs text-slate-500 mt-2">
-            Değerlendir butonu aktif değil: Model eğitilmemiş veya geçersiz
+            Model henüz eğitilmedi. Değerlendirme için eğitim başlatılacak.
           </div>
         )}
-        {modelInfo.isAvailable && modelInfo.trainingData < 10 && (
+        {!canEvaluate && (
           <div className="text-xs text-slate-500 mt-2">
             Değerlendir butonu aktif değil: Yetersiz eğitim verisi ({modelInfo.trainingData}/10)
           </div>
