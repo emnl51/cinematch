@@ -27,6 +27,8 @@ export class RecommendationService {
     },
     settings?: {
       recommendationCount?: number;
+      minTmdbScore?: number;
+      minTmdbVoteCount?: number;
     },
     watchlistIds?: number[]
   ): Promise<Recommendation[]> {
@@ -183,11 +185,13 @@ export class RecommendationService {
       });
 
       // Rating filter
+      const minRating = Math.max(filters.minRating, settings?.minTmdbScore ?? 0);
+      const minVoteCount = settings?.minTmdbVoteCount ?? 0;
       filteredRecommendations = filteredRecommendations.filter(rec => {
         if (!rec?.movie || typeof rec.movie.vote_average !== 'number' || typeof rec.movie.vote_count !== 'number') return false;
-        return rec.movie.vote_average >= Math.max(6.0, filters.minRating) && 
+        return rec.movie.vote_average >= minRating && 
                rec.movie.vote_average <= filters.maxRating &&
-               rec.movie.vote_count >= 100;
+               rec.movie.vote_count >= minVoteCount;
       });
 
       // Language filter

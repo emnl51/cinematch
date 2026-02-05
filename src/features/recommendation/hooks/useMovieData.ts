@@ -515,7 +515,11 @@ export const useMovieData = (settings?: AppSettings) => {
               tvGenresData,
               validRatings,
               { ...recommendationFilters, showKidsContent: settings?.showKidsContent ?? false, showAnimationContent: settings?.showAnimationContent ?? true, showAnimeContent: settings?.showAnimeContent ?? true },
-              settings?.recommendationCount !== undefined ? { recommendationCount: settings.recommendationCount } : {},
+              settings ? {
+                recommendationCount: settings.recommendationCount,
+                minTmdbScore: settings.minTmdbScore,
+                minTmdbVoteCount: settings.minTmdbVoteCount
+              } : {},
               watchlistIds
             );
             safeSetState(setRecommendationsLocal, recs, []);
@@ -627,14 +631,15 @@ export const useMovieData = (settings?: AppSettings) => {
           });
         }
 
+        const minRating = Math.max(settings?.minTmdbScore ?? 0, recommendationFilters.minRating);
+        const minVoteCount = settings?.minTmdbVoteCount ?? 0;
         filtered = filtered.filter(rec => {
           if (!rec?.movie || typeof rec.movie.vote_average !== 'number' || typeof rec.movie.vote_count !== 'number') {
             return false;
           }
-          const minRating = Math.max(6.0, recommendationFilters.minRating);
           return rec.movie.vote_average >= minRating && 
             rec.movie.vote_average <= recommendationFilters.maxRating &&
-            rec.movie.vote_count >= 100;
+            rec.movie.vote_count >= minVoteCount;
         });
 
         filtered = filtered.filter(rec => {
@@ -705,7 +710,8 @@ export const useMovieData = (settings?: AppSettings) => {
     recommendations,
     recommendationFilters,
     handleError,
-    safeSetState
+    safeSetState,
+    settings
   ]);
 
   // Filter curated content when filters change with error handling
@@ -1036,7 +1042,11 @@ export const useMovieData = (settings?: AppSettings) => {
             tvGenres,
             newRatings,
             { ...recommendationFilters, showKidsContent: settings?.showKidsContent ?? false, showAnimationContent: settings?.showAnimationContent ?? true, showAnimeContent: settings?.showAnimeContent ?? true },
-            settings?.recommendationCount !== undefined ? { recommendationCount: settings.recommendationCount } : {},
+            settings ? {
+              recommendationCount: settings.recommendationCount,
+              minTmdbScore: settings.minTmdbScore,
+              minTmdbVoteCount: settings.minTmdbVoteCount
+            } : {},
             watchlistIds
           );
           safeSetState(setRecommendationsLocal, recs, []);
@@ -1203,7 +1213,11 @@ export const useMovieData = (settings?: AppSettings) => {
         tvGenres,
         Array.isArray(ratings) ? ratings : [],
         recommendationFilters, // Filtreleri geçir
-        settings?.recommendationCount !== undefined ? { recommendationCount: settings.recommendationCount } : {} // Ayarları geçir
+        settings ? {
+          recommendationCount: settings.recommendationCount,
+          minTmdbScore: settings.minTmdbScore,
+          minTmdbVoteCount: settings.minTmdbVoteCount
+        } : {} // Ayarları geçir
       );
       
       // Filtrelenmiş önerileri doğrudan set et
@@ -1222,7 +1236,7 @@ export const useMovieData = (settings?: AppSettings) => {
       setRecommendationsLoading(false);
       setRecommendationsLoadingProgress({ current: 0, total: 0, message: '' });
     }
-  }, [profile, genres, tvGenres, ratings, recommendationFilters, handleError, safeSetState, recommendationsLoading]);
+  }, [profile, genres, tvGenres, ratings, recommendationFilters, handleError, safeSetState, recommendationsLoading, settings]);
 
   // Refresh curated content with filters
   const refreshCuratedContent = useCallback(async () => {
