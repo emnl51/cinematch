@@ -139,17 +139,22 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
     (filters.minMatchScore !== 0 ? 1 : 0) +
     ((filters.languages || []).length > 0 ? 1 : 0), [filters]);
 
+  const popularGenreIds = [28, 35, 18, 12, 878, 27, 10749, 53, 16, 80, 14, 10765];
+  const genreMap = useMemo(() => new Map(genres.map(genre => [genre.id, genre])), [genres]);
+  const popularGenres = useMemo(() => popularGenreIds
+    .map(id => genreMap.get(id))
+    .filter((genre): genre is Genre => Boolean(genre)), [genreMap]);
+
   // Popüler türleri önce göster
   const sortedGenres = useMemo(() => [...genres].sort((a, b) => {
-    const popularGenres = [28, 35, 18, 878, 27, 10749, 53, 16, 80, 12, 14, 10765]; // Popüler tür ID'leri
-    const aIndex = popularGenres.indexOf(a.id);
-    const bIndex = popularGenres.indexOf(b.id);
+    const aIndex = popularGenreIds.indexOf(a.id);
+    const bIndex = popularGenreIds.indexOf(b.id);
     
     if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
     if (aIndex !== -1) return -1;
     if (bIndex !== -1) return 1;
     return a.name.localeCompare(b.name, 'tr');
-  }), [genres]);
+  }), [genres, popularGenreIds]);
 
   const [showOtherLanguages, setShowOtherLanguages] = React.useState(false);
 
@@ -429,16 +434,7 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
             <div className="mb-3">
               <p className="text-xs text-theme-tertiary mb-2">Popüler Türler:</p>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 28, name: 'Aksiyon' },
-                  { id: 35, name: 'Komedi' },
-                  { id: 18, name: 'Dram' },
-                  { id: 878, name: 'Bilim Kurgu' },
-                  { id: 10765, name: 'Bilim Kurgu & Fantazi' },
-                  { id: 27, name: 'Korku' },
-                  { id: 10749, name: 'Romantik' },
-                  { id: 53, name: 'Gerilim' }
-                ].map((genre) => (
+                {popularGenres.map((genre) => (
                   <button
                     key={genre.id}
                     onClick={() => toggleGenre(genre.id)}
@@ -459,7 +455,7 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = React
               <p className="text-xs text-theme-tertiary mb-2">Diğer Türler:</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-              {sortedGenres.filter(genre => ![28, 35, 18, 878, 10765, 27, 10749, 53].includes(genre.id)).map((genre) => (
+              {sortedGenres.filter(genre => !popularGenreIds.includes(genre.id)).map((genre) => (
                 <button
                   key={genre.id}
                   onClick={() => toggleGenre(genre.id)}

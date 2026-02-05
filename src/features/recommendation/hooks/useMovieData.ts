@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Movie, TVShow, Genre, UserRating, UserProfile, Recommendation } from '../../content/types';
 import { tmdbService } from '../../content/services/tmdb';
 
@@ -1409,6 +1409,17 @@ export const useMovieData = (settings?: AppSettings) => {
     };
   }, []);
 
+  const mergedGenres = useMemo(() => {
+    const uniqueGenres = new Map<number, Genre>();
+    (Array.isArray(genres) ? genres : []).forEach(genre => uniqueGenres.set(genre.id, genre));
+    (Array.isArray(tvGenres) ? tvGenres : []).forEach(genre => {
+      if (!uniqueGenres.has(genre.id)) {
+        uniqueGenres.set(genre.id, genre);
+      }
+    });
+    return Array.from(uniqueGenres.values());
+  }, [genres, tvGenres]);
+
   return {
     user: null,
     profile,
@@ -1421,7 +1432,7 @@ export const useMovieData = (settings?: AppSettings) => {
     updateProfile: undefined,
     movies: Array.isArray(movies) ? movies : [],
     allMovies: Array.isArray(allMovies) ? allMovies : [],
-    genres: [...(Array.isArray(genres) ? genres : []), ...(Array.isArray(tvGenres) ? tvGenres : [])],
+    genres: mergedGenres,
     recommendations: Array.isArray(recommendations) ? recommendations : [],
     filteredRecommendations: Array.isArray(filteredRecommendations) ? filteredRecommendations : [],
     loading,
